@@ -577,7 +577,7 @@ function fameView() {
   }
   const past = S.cycles.filter((c) => c.closed && c.title).reverse()
   return `<h2 class="title">명예의 전당</h2>
-    <section class="card"><p class="eyebrow">👑 빨리 읽기 왕</p><p class="soft">모임 책을 가장 먼저 다 읽은 횟수예요.</p><ol class="board">${board('wins', '회')}</ol></section>
+    <section class="card"><p class="eyebrow">👑 빨리 읽기 왕</p><p class="soft">모임 책을 가장 먼저 다 읽은 횟수예요. 지금 읽는 책도 먼저 다 읽으면 바로 올라가요.</p><ol class="board">${board('wins', '회')}</ol></section>
     <section class="card"><p class="eyebrow">📚 다독왕</p><p class="soft">모임 책과 서재의 책을 합쳐 끝까지 읽은 권수예요.</p><ol class="board">${board('read', '권')}</ol></section>
     <section class="card"><p class="eyebrow">함께 읽은 책</p>
       ${

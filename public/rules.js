@@ -45,11 +45,14 @@ export function nextPicker(users, currentId) {
 }
 
 // 명예의 전당: 우승(가장 빨리 읽은) 횟수, 완독 권수(모임 도서 + 개인 책).
-export const fame = (users, cycles, progress, books) =>
-  users.map((u) => ({
+// 끝난 책은 마감 때 적어 둔 우승자를, 지금 읽는 책은 왕관을 쓰고 있는 사람을 센다(먼저 다 읽은 순간 바로 올라간다).
+export const fame = (users, cycles, progress, books) => {
+  const winners = cycles.map((c) => (c.closed ? c.winner_id : crownOf(progress.filter((p) => p.cycle_id === c.id))))
+  return users.map((u) => ({
     user_id: u.id,
-    wins: cycles.filter((c) => c.winner_id === u.id).length,
+    wins: winners.filter((w) => w === u.id).length,
     read:
       progress.filter((p) => p.user_id === u.id && p.finished_at != null).length +
       books.filter((b) => b.user_id === u.id && b.finished_at != null).length,
   }))
+}

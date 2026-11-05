@@ -141,6 +141,9 @@ let floor
 const cast = new Map() // user id → { el, x, stage, timer }
 
 export function mountScene(el) {
+  // 다시 로그인하면 방을 새로 그린다. 이전 방의 친구들을 기억한 채로 두면 새 방에 아무도 올라오지 않는다.
+  for (const c of cast.values()) clearTimeout(c.timer)
+  cast.clear()
   el.innerHTML = room() + '<div class="floor"></div>'
   floor = el.querySelector('.floor')
 }

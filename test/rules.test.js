@@ -77,7 +77,7 @@ test('nextPicker: 순번대로 돌고 마지막 다음은 처음', () => {
 
 test('fame: 우승 횟수와 완독 권수(모임 도서 + 개인 책)', () => {
   const users = [{ id: 1 }, { id: 2 }]
-  const cycles = [{ id: 1, winner_id: 2 }, { id: 2, winner_id: 2 }, { id: 3, winner_id: null }]
+  const cycles = [{ id: 1, closed: 1, winner_id: 2 }, { id: 2, closed: 1, winner_id: 2 }, { id: 3, closed: 0, winner_id: null }]
   const progress = [
     { cycle_id: 1, user_id: 1, finished_at: 5 },
     { cycle_id: 1, user_id: 2, finished_at: 3 },
@@ -88,6 +88,9 @@ test('fame: 우승 횟수와 완독 권수(모임 도서 + 개인 책)', () => {
     { user_id: 1, wins: 0, read: 2 },
     { user_id: 2, wins: 2, read: 2 },
   ])
+  // 지금 읽는 책(3)을 1번이 먼저 다 읽으면, 책이 마감되기 전에도 바로 한 번으로 센다
+  const reading = [...progress, { cycle_id: 3, user_id: 2, finished_at: 8 }, { cycle_id: 3, user_id: 1, finished_at: 7 }]
+  assert.deepEqual(fame(users, cycles, reading, books).map((r) => r.wins), [1, 2])
 })
 
 // ---- 토론 카드 덱 ----
