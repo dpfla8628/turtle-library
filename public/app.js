@@ -517,9 +517,11 @@ function shelfView() {
   return `<div class="chips pickers">${S.users
     .map((u) => `<button class="chip c-${u.color}" data-act="shelf-user" data-id="${u.id}" aria-pressed="${u.id === owner.id}"><i></i>${esc(u.name)}</button>`)
     .join('')}</div>
-    <h2 class="title">${mine ? '나의 서재' : `${esc(owner.name)}님의 서재`}</h2>
-    <p class="soft lead">완독 <b>${doneCount}권</b> · 읽는 중 <b>${items.length - doneCount}권</b></p>
-    ${mine ? `<button class="btn wide" data-act="shelf-add">＋ 읽는 책 추가</button>` : ''}
+    <div class="row between shelf-head">
+      <div><h2 class="title">${mine ? '나의 서재' : `${esc(owner.name)}님의 서재`}</h2>
+        <p class="soft">완독 <b>${doneCount}권</b> · 읽는 중 <b>${items.length - doneCount}권</b></p></div>
+      ${mine ? `<button class="btn small" data-act="shelf-add">＋ 책 추가</button>` : ''}
+    </div>
     ${
       items.length
         ? `<div class="shelf">${items
@@ -527,9 +529,8 @@ function shelfView() {
               (it) => `<button class="vol${it.done ? ' done' : ''}" data-act="open-book" data-key="${it.key}" data-user="${owner.id}">
                 ${cover(it.title)}
                 ${it.cycle ? '<span class="badge">모임</span>' : ''}${it.done ? '<span class="stamp">완독</span>' : ''}
-                <b>${esc(it.title)}</b>
                 <span class="bar"><i style="width:${pct(it.read, it.pages)}%"></i></span>
-                <small>${it.done ? `${fmtStamp(it.done)} 완독` : `${it.read} / ${it.pages}쪽 · ${pct(it.read, it.pages)}%`}</small>
+                <small>${it.done ? fmtStamp(it.done) : `${it.read} / ${it.pages}쪽`}</small>
               </button>`,
             )
             .join('')}</div>`

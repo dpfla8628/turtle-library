@@ -330,16 +330,19 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 .deck-nav { display: flex; justify-content: space-between; align-items: center; font: 17px var(--title); }
 
 /* ---------- 서재 ---------- */
-.shelf { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 16px; }
-.vol { position: relative; display: grid; align-content: start; gap: 6px; text-align: left; background: var(--paper); border: 2px solid var(--line); border-radius: 20px; box-shadow: 0 4px 0 var(--line); padding: 12px; }
-.vol > b { font: 15px/1.35 var(--title); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.vol small { color: var(--ink-soft); font-size: 12px; }
-.vol.done { background: #fffae6; border-color: #f0cf6a; box-shadow: 0 4px 0 #f0cf6a; }
+/* 책장처럼 표지만 나란히 꽂는다(폰에서 한 줄에 세 권). 제목은 표지에 있으니 아래에는 진행도만 둔다. */
+.shelf-head { flex-wrap: nowrap; margin-top: 14px; }
+.shelf-head .title, .shelf-head p { margin: 0; }
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 14px 10px; margin-top: 14px; }
+.vol { position: relative; display: grid; align-content: start; gap: 5px; text-align: center; background: none; border: 0; padding: 0; }
+.vol .cover { font-size: 13px; }
+.vol small { color: var(--ink-soft); font-size: 12px; line-height: 1.2; }
 .bar, .meter { display: block; height: 9px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.vol .bar { height: 6px; }
 .bar i, .meter i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
 .done .bar i { background: #f0b429; }
-.badge { position: absolute; top: 7px; left: 7px; font: 12px var(--title); background: var(--ink); color: #fff; border-radius: 99px; padding: 0 9px; }
-.stamp { position: absolute; top: 20px; right: 4px; transform: rotate(13deg); font: 15px var(--title); color: #d2523c; background: rgba(255, 255, 255, 0.9); border: 2.5px solid #d2523c; border-radius: 10px; padding: 0 8px; }
+.badge { position: absolute; top: 5px; left: 13px; font: 11px var(--title); background: var(--ink); color: #fff; border-radius: 99px; padding: 0 7px; }
+.stamp { position: absolute; top: 26px; right: -2px; transform: rotate(13deg); font: 12px var(--title); color: #d2523c; background: rgba(255, 255, 255, 0.92); border: 2px solid #d2523c; border-radius: 8px; padding: 0 6px; }
 .back { display: block; margin-top: 4px; font: 15px var(--title); text-decoration: none; }
 summary { font: 16px var(--title); cursor: pointer; min-height: 32px; }
 .past { padding-left: 22px; margin: 10px 0 0; display: grid; gap: 6px; font-size: 15px; }
