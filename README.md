@@ -179,7 +179,7 @@
 
 ```
 public/        화면 (index.html, style.css, app.js, critters.js) + rules.js(서버와 같이 쓰는 규칙)
-public/guide*  사용 가이드 페이지와 화면 캡처
+public/guide*  사용 가이드 페이지(정적 HTML)와 화면 캡처
 src/worker.js  API: 로그인, 사이클 넘기기, 모든 변경 요청
 src/auth.js    비밀번호 해시와 세션 토큰
 src/deck.js    토론 덱 구성        src/cards.js  카드 문항
