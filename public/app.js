@@ -1,6 +1,6 @@
 // 거북이 도서관 화면. 서버가 주는 전체 상태(S)를 받아 그대로 다시 그린다.
 import { STAGES, pct, stageOf, phaseOf, unanimous, crownOf, fame, withHero } from './rules.js'
-import { critterSVG, mountScene, updateScene, celebrate } from './critters.js'
+import { critterSVG, mountScene, updateScene, celebrate, motion, setMotion } from './critters.js'
 
 const $ = (sel, root = document) => root.querySelector(sel)
 const esc = (s) =>
@@ -659,6 +659,7 @@ function profileSheet() {
     <button class="btn wide">저장</button>
   </form>
   ${pushSection()}
+  ${motionSection()}
   <details class="more"><summary>비밀번호 바꾸기</summary>
     <form data-form="password" class="form">
       <label>지금 비밀번호<input name="old" type="password" required autocomplete="current-password"></label>
@@ -699,6 +700,13 @@ const pushSection = () =>
         <div class="row"><button type="button" class="btn ghost grow" data-act="push-test">시험 알림 보내기</button><button type="button" class="btn ghost grow" data-act="push-off">알림 끄기</button></div>`,
     }[pushState()]
   }</section>`
+
+// 움직임 효과. 기기의 "동작 줄이기" 설정과 상관없이 기본으로 켜져 있고, 불편하면 이 기기에서만 끈다.
+const motionSection = () =>
+  `<section class="more push"><h3>움직임 효과</h3>
+    <p class="soft">캐릭터가 걸어 다니고 화면이 부드럽게 바뀌어요. 어지럽거나 불편하면 꺼 주세요.</p>
+    <button type="button" class="btn ghost wide" data-act="motion" role="switch" aria-checked="${motion()}">움직임 효과: ${motion() ? '켜짐' : '꺼짐'}</button>
+  </section>`
 
 const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0))
 const hintSeen = () => {
@@ -824,6 +832,10 @@ const actions = {
     if (await act('push/quiet', { endpoint: mySub.endpoint, quiet: !myPush()?.quiet }, '알림 설정을 바꿨어요')) profileSheet()
   },
   'push-test': () => act('push/test', { endpoint: mySub.endpoint }, '시험 알림을 보냈어요. 곧 도착해요 🔔'),
+  motion() {
+    setMotion(!motion())
+    profileSheet()
+  },
   async logout() {
     await call('logout', { endpoint: mySub?.endpoint }).catch(() => {}) // 이 기기로 가던 알림도 같이 끊긴다
     sheet.close()

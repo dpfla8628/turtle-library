@@ -392,6 +392,6 @@ dialog[open] { animation: rise 0.22s ease-out; }
   #app { background: var(--bg); box-shadow: 0 0 0 2px var(--line); }
   .tabs { max-width: 480px; margin: 0 auto; }
 }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-}
+/* "내 정보"에서 움직임 효과를 껐을 때: 모든 애니메이션과 전환을 멈춘다 (critters.js 가 html 에 still 을 붙인다).
+   기기의 "동작 줄이기" 설정은 일부러 따르지 않는다. 이유는 critters.js 의 motion 에 적어 뒀다. */
+.still *, .still *::before, .still *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

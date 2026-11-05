@@ -245,7 +245,9 @@ npm run deploy
 | 예전 버전에서 올리기 | `cycles` 표에 칸 두 개가 늘었습니다: `npx wrangler d1 execute book-club --remote --command "ALTER TABLE cycles ADD COLUMN hero TEXT; ALTER TABLE cycles ADD COLUMN reason TEXT"` |
 | 테스트 | `npm test` |
 
-이름 · 색 · 비밀번호는 각자 앱의 "내 정보"에서 바꿉니다.
+이름 · 색 · 비밀번호는 각자 앱의 "내 정보"에서 바꿉니다. 캐릭터와 화면의 움직임 효과는 기기의 "동작 줄이기" 설정과 상관없이 켜져 있고(돌아다니는 캐릭터가 멈춰 있으면 고장처럼 보여서), 불편한 사람은 "내 정보"에서 그 기기만 끌 수 있습니다.
+
+홈 화면 아이콘은 `public/icon.svg` 한 장에서 만든 PNG들입니다(192 · 512 · 마스크용 512 · 아이폰용 180). 그림을 바꾸면 네 장을 같은 크기로 다시 만들어 넣어야 합니다.
 
 ### 책 찾기 (선택 기능)
 

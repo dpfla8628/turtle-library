@@ -135,7 +135,28 @@ function room() {
 // ---- 돌아다니기 ----
 const SPEED = [2.5, 4.5, 7, 13, 16] // 초당 이동 거리(바닥 너비의 %). 단계가 오를수록 빨라진다.
 const LANES = [2, 20, 11, 28, 6, 24] // 바닥에서 떨어진 높이(%). 서로 겹쳐 보이지 않게 번갈아 선다.
-const calm = matchMedia('(prefers-reduced-motion: reduce)')
+
+// 움직임 효과(캐릭터가 걸어 다니고 화면이 부드럽게 바뀌는 것)를 쓸지. 기기마다 "내 정보"에서 끌 수 있다.
+// 기기의 "동작 줄이기" 설정은 따르지 않는다: 돌아다니는 캐릭터가 이 앱의 중심이라, 그 설정을 켠 아이폰에서
+// 캐릭터가 멈춰 있는 것이 고장처럼 보였다. 움직임이 불편한 사람은 앱 안의 스위치로 끈다.
+export const motion = () => {
+  try {
+    return localStorage.getItem('motion') !== 'off'
+  } catch {
+    return true
+  }
+}
+// 꺼져 있으면 html 에 still 을 붙이고, style.css 가 모든 애니메이션과 전환을 멈춘다.
+const applyMotion = () => document.documentElement.classList.toggle('still', !motion())
+export function setMotion(on) {
+  try {
+    localStorage.setItem('motion', on ? 'on' : 'off')
+  } catch {
+    // 저장이 막힌 브라우저에서는 늘 켜진 채로 둔다
+  }
+  applyMotion()
+}
+if (typeof document !== 'undefined') applyMotion() // 테스트와 가이드 스크립트는 그림만 가져다 쓴다
 
 let floor
 const cast = new Map() // user id → { el, x, stage, timer }
@@ -150,7 +171,9 @@ export function mountScene(el) {
 
 function wander(c) {
   const step = () => {
-    if (!c.el.isConnected || calm.matches) return
+    if (!c.el.isConnected) return
+    // 꺼 둔 동안에도 가끔 다시 본다. 다시 켜면 새로 고치지 않아도 걷기 시작한다.
+    if (!motion()) return void (c.timer = setTimeout(step, 2000))
     // 다른 친구가 서 있는(또는 가고 있는) 자리는 피해서 고른다. 몇 번 해 보고 안 되면 그냥 간다.
     let x
     for (let tries = 0; tries < 6; tries++) {

@@ -3,7 +3,6 @@
 // data-critter="단계"(0~4) 가 붙은 요소의 안쪽을 채우고, data-crown 이 있으면 왕관을 씌운다.
 import { readFileSync, writeFileSync } from 'node:fs'
 
-globalThis.matchMedia = () => ({ matches: false }) // critters.js 가 브라우저 전용 값을 한 번 읽는다
 const { critterSVG } = await import('../public/critters.js')
 
 const file = new URL('../public/guide.html', import.meta.url)

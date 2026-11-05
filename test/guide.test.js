@@ -2,7 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-globalThis.matchMedia = () => ({ matches: false })
 const { critterSVG } = await import('../public/critters.js')
 
 test('가이드의 캐릭터 SVG가 현재 그림과 같다', () => {
