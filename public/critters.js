@@ -13,50 +13,48 @@ const line = (d) => `<path d="${d}" fill="none" stroke="${INK}" stroke-width="1.
 const smile = (x, y) => line(`M${x - 3} ${y} q3 3.2 6 0`)
 const wMouth = (x, y) => line(`M${x - 4.6} ${y} q2.3 3 4.6 0 q2.3 3 4.6 0`)
 
-// 단계별 몸. 모두 오른쪽을 보고, 발바닥이 y=94 근처에 닿는다.
-const BODY = [
-  // 0 아기 거북이
-  `<ellipse cx="27" cy="89" rx="9" ry="5.5" fill="#b5dc98"/><ellipse cx="55" cy="89" rx="9" ry="5.5" fill="#b5dc98"/>
-   <path d="M13 81 q-9 0 -10 7 q9 2 13 -2z" fill="#b5dc98"/>
-   <path d="M76 51 q-3 -9 5 -10 q2 8 -5 10z" fill="#8fce7a"/>
-   <circle cx="78" cy="67" r="16" fill="#cdebb5"/>
-   <path d="M9 85 Q9 43 40 43 Q71 43 71 85 Z" fill="var(--c)"/>
-   <path d="M24 62 q16 -13 32 0" fill="none" stroke="var(--cd)" stroke-width="4" stroke-linecap="round"/>
-   <circle cx="27" cy="73" r="4" fill="var(--cd)"/><circle cx="40" cy="76" r="4" fill="var(--cd)"/><circle cx="53" cy="73" r="4" fill="var(--cd)"/>
-   <rect x="6" y="81" width="68" height="8" rx="4" fill="var(--cd)"/>
-   ${eyes(75, 86, 64)}${smile(80.5, 70)}`,
-  // 1 병아리
-  `<ellipse cx="41" cy="92" rx="6" ry="3" fill="#f6a94a"/><ellipse cx="59" cy="92" rx="6" ry="3" fill="#f6a94a"/>
-   <path d="M47 33 q-5 -11 3 -10 q1 -7 8 -3 q3 5 -3 13z" fill="var(--c)"/>
-   <circle cx="50" cy="61" r="30" fill="var(--c)"/>
-   <ellipse cx="31" cy="67" rx="11" ry="8" fill="var(--cd)" transform="rotate(-24 31 67)"/>
-   <path d="M59 61 q6 -3.5 12 0 q-6 8 -12 0z" fill="#f6a94a"/>
-   ${eyes(56, 74, 54)}`,
-  // 2 고양이
-  `<path d="M24 82 q-17 -3 -12 -22 q2 -6 7 -4 q4 2 1 8 q-3 9 7 11z" fill="var(--cd)"/>
-   <ellipse cx="46" cy="76" rx="26" ry="17" fill="var(--c)"/>
-   <ellipse cx="33" cy="91" rx="8" ry="4" fill="var(--c)"/><ellipse cx="58" cy="91" rx="8" ry="4" fill="var(--c)"/>
-   <ellipse cx="48" cy="80" rx="13" ry="9" fill="${CREAM}" opacity=".85"/>
-   <path d="M40 36 l1 -22 l17 13z" fill="var(--c)"/><path d="M65 27 l16 -14 l3 22z" fill="var(--c)"/>
-   <path d="M44 31 l1 -10 l8 7z" fill="#ffc9d4"/><path d="M71 27 l8 -7 l1 11z" fill="#ffc9d4"/>
-   <circle cx="61" cy="49" r="24" fill="var(--c)"/>
-   <path d="M60 54 l3.4 0 l-1.7 2.2z" fill="#ff8fa3" stroke="#ff8fa3" stroke-width="1" stroke-linejoin="round"/>
-   <path d="M42 51 l-8 -2 M42 55 l-8 1 M81 51 l8 -2 M81 55 l8 1" stroke="${INK}" stroke-width="1.1" stroke-linecap="round" opacity=".45"/>
-   ${eyes(53, 71, 48)}${wMouth(61.7, 58)}`,
-  // 3 강아지
-  `<path class="wag" d="M22 70 q-13 -9 -8 -21 q4 -5 8 -1 q-1 9 7 14z" fill="var(--cd)"/>
-   <ellipse cx="46" cy="76" rx="27" ry="17" fill="var(--c)"/>
-   <ellipse cx="32" cy="91" rx="8" ry="4" fill="var(--c)"/><ellipse cx="59" cy="91" rx="8" ry="4" fill="var(--c)"/>
-   <ellipse cx="47" cy="80" rx="13" ry="9" fill="${CREAM}" opacity=".85"/>
-   <circle cx="62" cy="47" r="24" fill="var(--c)"/>
-   <ellipse cx="41" cy="45" rx="8" ry="16" fill="var(--cd)" transform="rotate(14 41 45)"/>
-   <ellipse cx="83" cy="45" rx="8" ry="16" fill="var(--cd)" transform="rotate(-14 83 45)"/>
-   <ellipse cx="63" cy="56" rx="11.5" ry="8.5" fill="${CREAM}"/>
-   <ellipse cx="63" cy="52" rx="3.6" ry="2.6" fill="${INK}"/>
-   <path d="M60.5 60 q2.5 6 5 0z" fill="#ff8fa3"/>
-   ${eyes(53, 73, 44)}${wMouth(63, 57.5)}`,
-  // 4 토끼
-  `<circle cx="22" cy="78" r="8.5" fill="${CREAM}"/>
+// ---- 캐릭터 ----
+// 70%까지는 계속 거북이다. 읽을수록 몸이 커지고(SIZE) 머리띠 색이 바뀌며(BAND), 70%부터는 달리는 자세가 된다.
+// 100%에서만 토끼가 된다. 모두 오른쪽을 보고, 발바닥이 y=94 근처에 닿는다.
+const SIZE = [0.64, 0.8, 0.92, 1] // 거북이 몸 크기 (발바닥 가운데를 기준으로 줄인다)
+const BAND = [null, ['#ffffff', '#d9c7b4'], ['#74aaf2', '#4c84d8'], ['#f2665c', '#cf4a41']] // 머리띠 [색, 테두리]: 없음 → 흰색 → 파랑 → 빨강
+const SKIN = '#cdebb5'
+const LEG = '#b5dc98'
+
+function headband([color, edge], flying) {
+  const arc = 'M67 57 Q80 49.5 93.5 61'
+  // 끈: 평소엔 짧은 매듭, 달릴 때는 뒤로 길게 휘날린다
+  const tails = flying
+    ? `<g class="tails fly"><path d="M67 57 q-10 -9 -22 -4 M67 58.5 q-11 0 -18 8" fill="none" stroke="${color}" stroke-width="3.6" stroke-linecap="round"/></g>`
+    : `<g class="tails"><path d="M67 57 l-9 -4 l2 7z M67 58 l-8 4 l5 4z" fill="${color}" stroke="${edge}" stroke-width=".8" stroke-linejoin="round"/></g>`
+  return `${tails}
+    <path d="${arc}" fill="none" stroke="${edge}" stroke-width="6.6" stroke-linecap="round"/>
+    <path d="${arc}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="67" cy="57.5" r="3.4" fill="${color}" stroke="${edge}" stroke-width=".8"/>`
+}
+
+function turtle(stage) {
+  const run = stage === 3
+  const legs = run
+    ? `<ellipse cx="20" cy="88" rx="11" ry="5" fill="${LEG}" transform="rotate(26 20 88)"/><ellipse cx="61" cy="88" rx="11" ry="5" fill="${LEG}" transform="rotate(-26 61 88)"/>`
+    : `<ellipse cx="27" cy="89" rx="9" ry="5.5" fill="${LEG}"/><ellipse cx="55" cy="89" rx="9" ry="5.5" fill="${LEG}"/>`
+  const body = `${legs}
+    <path d="M13 81 q-9 0 -10 7 q9 2 13 -2z" fill="${LEG}"/>
+    ${stage === 0 ? '<path d="M76 51 q-3 -9 5 -10 q2 8 -5 10z" fill="#8fce7a"/>' : ''}
+    <circle cx="78" cy="67" r="16" fill="${SKIN}"/>
+    <path d="M9 85 Q9 43 40 43 Q71 43 71 85 Z" fill="var(--c)"/>
+    <path d="M24 62 q16 -13 32 0" fill="none" stroke="var(--cd)" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="27" cy="73" r="4" fill="var(--cd)"/><circle cx="40" cy="76" r="4" fill="var(--cd)"/><circle cx="53" cy="73" r="4" fill="var(--cd)"/>
+    <rect x="6" y="81" width="68" height="8" rx="4" fill="var(--cd)"/>
+    ${BAND[stage] ? headband(BAND[stage], run) : ''}
+    ${eyes(75, 86, 64)}${run ? `<path d="M77.3 69 h6.4 a3.2 3.6 0 0 1 -6.4 0z" fill="${INK}"/>` : smile(80.5, 70)}`
+  // 달리는 거북이: 몸을 앞으로 기울이고, 걸을 때만 보이는 바람 줄(.dash)을 뒤에 둔다
+  return run
+    ? `<path class="dash" d="M0 55 h8 M-4 64 h11 M1 73 h6" fill="none" stroke="#d6c2ad" stroke-width="2.4" stroke-linecap="round"/><g transform="rotate(4 40 92)">${body}</g>`
+    : body
+}
+
+const RABBIT = `<circle cx="22" cy="78" r="8.5" fill="${CREAM}"/>
    <ellipse cx="50" cy="19" rx="8" ry="19" fill="var(--c)" transform="rotate(-9 50 19)"/>
    <ellipse cx="70" cy="19" rx="8" ry="19" fill="var(--c)" transform="rotate(9 70 19)"/>
    <ellipse cx="50" cy="20" rx="3.6" ry="13" fill="#ffc9d4" transform="rotate(-9 50 20)"/>
@@ -66,30 +64,24 @@ const BODY = [
    <ellipse cx="48" cy="80" rx="13" ry="9" fill="${CREAM}" opacity=".85"/>
    <circle cx="60" cy="51" r="23.5" fill="var(--c)"/>
    <ellipse cx="60.5" cy="56" rx="2.4" ry="1.7" fill="#ff8fa3"/>
-   ${eyes(52, 69, 50)}${wMouth(60.5, 59)}`,
-]
+   ${eyes(52, 69, 50)}${wMouth(60.5, 59)}`
 
-// 왕관이 앉을 자리 (머리 꼭대기).
-const CROWN_AT = [
-  [79, 52],
-  [52, 33],
-  [61, 27],
-  [62, 25],
-  [60, 30],
-]
+// 왕관은 가장 먼저 다 읽은 사람, 곧 토끼만 쓴다.
 // CSS 애니메이션의 transform 은 SVG transform 속성을 덮어쓴다. 그래서 자리는 바깥 g, 흔들림(.crown)은 안쪽 g 가 맡는다.
-const crown = ([x, y]) => `<g transform="translate(${x} ${y})"><g class="crown">
+const CROWN = `<g transform="translate(60 30)"><g class="crown">
   <path d="M-14 0 L-16 -14 L-7.5 -7 L0 -18 L7.5 -7 L16 -14 L14 0 Z" fill="#f9cf4a" stroke="#dfa521" stroke-width="1.6" stroke-linejoin="round"/>
   <circle cx="0" cy="-5.5" r="2.2" fill="#ff8fa3"/><circle cx="-8.5" cy="-4" r="1.5" fill="#8fd3f4"/><circle cx="8.5" cy="-4" r="1.5" fill="#8fd3f4"/>
 </g></g>`
 
-// 그림 위쪽의 빈 공간을 잘라 이름표가 머리 바로 위에 붙게 한다 (왕관을 쓰면 그만큼 덜 자른다).
-const TOP = [38, 20, 11, 20, 0]
-const TOP_CROWNED = [31, 12, 6, 4, 0]
+// 그림 위쪽의 빈 공간을 잘라 이름표가 머리 바로 위에 붙게 한다.
+const TOP = [57, 55, 50, 46, 0]
 
 export const critterSVG = (stage, crowned = false) => {
-  const top = (crowned ? TOP_CROWNED : TOP)[stage]
-  return `<svg viewBox="0 ${top} 100 ${100 - top}" preserveAspectRatio="xMidYMax meet" aria-hidden="true"><g class="body">${BODY[stage]}</g>${crowned ? crown(CROWN_AT[stage]) : ''}</svg>`
+  const art =
+    stage < 4
+      ? `<g transform="translate(50 94) scale(${SIZE[stage]}) translate(-50 -94)"><g class="body">${turtle(stage)}</g></g>`
+      : `<g class="body">${RABBIT}</g>${crowned ? CROWN : ''}`
+  return `<svg viewBox="0 ${TOP[stage]} 100 ${100 - TOP[stage]}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${art}</svg>`
 }
 
 // ---- 도서관 배경 ----
@@ -141,7 +133,7 @@ function room() {
 }
 
 // ---- 돌아다니기 ----
-const SPEED = [3, 6, 9, 12, 16] // 초당 이동 거리(바닥 너비의 %). 단계가 오를수록 빨라진다.
+const SPEED = [2.5, 4.5, 7, 13, 16] // 초당 이동 거리(바닥 너비의 %). 단계가 오를수록 빨라진다.
 const LANES = [2, 20, 11, 28, 6, 24] // 바닥에서 떨어진 높이(%). 서로 겹쳐 보이지 않게 번갈아 선다.
 const calm = matchMedia('(prefers-reduced-motion: reduce)')
 

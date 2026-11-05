@@ -1,10 +1,10 @@
 // 모임 규칙 (순수 함수). 서버(src/worker.js)와 화면(app.js)이 같이 쓴다.
 
 export const STAGES = [
-  { min: 0, name: '아기 거북이' },
-  { min: 30, name: '병아리' },
-  { min: 50, name: '고양이' },
-  { min: 70, name: '강아지' },
+  { min: 0, name: '미니미 거북이' },
+  { min: 30, name: '꼬마 거북이' },
+  { min: 50, name: '씩씩한 거북이' },
+  { min: 70, name: '달리는 거북이' },
   { min: 100, name: '토끼' },
 ]
 

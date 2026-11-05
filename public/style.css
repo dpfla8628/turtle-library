@@ -180,9 +180,7 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 .scene { position: relative; aspect-ratio: 360 / 230; border-radius: 24px; overflow: hidden; border: 3px solid #fff; box-shadow: 0 4px 0 var(--line), 0 0 0 2px var(--line); }
 .room { position: absolute; inset: 0; width: 100%; height: 100%; }
 .floor { position: absolute; inset: auto 0 3% 0; height: 34%; }
-.critter { position: absolute; width: 18%; transform: translateX(-50%); display: grid; justify-items: center; background: none; border: 0; padding: 0; transition: left var(--t, 0s) linear; }
-.critter.s0, .critter.s1 { width: 16%; }
-.critter.s3 { width: 19%; }
+.critter { position: absolute; width: 19%; transform: translateX(-50%); display: grid; justify-items: center; background: none; border: 0; padding: 0; transition: left var(--t, 0s) linear; }
 .critter.s4 { width: 20%; }
 .critter .tag { font: 11px/1.5 var(--title); white-space: nowrap; background: #fff; border: 2px solid var(--cd); border-radius: 99px; padding: 0 7px; margin-bottom: 1px; }
 .critter.me .tag { background: var(--c); border-color: var(--ink); }
@@ -194,14 +192,17 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 @keyframes breathe { 50% { transform: scaleY(0.95); } }
 /* 걷는 모양: 거북이는 느릿느릿, 토끼는 깡충깡충 */
 .walk svg { animation: hop var(--pace) ease-in-out infinite; }
-.s0 { --hop: -3%; --pace: 1.2s; }
-.s1 { --hop: -10%; --pace: 0.36s; }
-.s2 { --hop: -8%; --pace: 0.44s; }
-.s3 { --hop: -12%; --pace: 0.34s; }
+.s0 { --hop: -2%; --pace: 1.4s; }
+.s1 { --hop: -3%; --pace: 1.1s; }
+.s2 { --hop: -4%; --pace: 0.8s; }
+.s3 { --hop: -8%; --pace: 0.3s; }
 .s4 { --hop: -36%; --pace: 0.52s; }
+/* 달리는 거북이: 걸을 때만 뒤에 바람 줄이 보이고, 머리띠 끈이 휘날린다 */
+.critter .dash { opacity: 0; transition: opacity 0.2s; }
+.critter.walk .dash { opacity: 1; }
+.tails.fly { transform-box: fill-box; transform-origin: 100% 60%; animation: flutter 0.45s ease-in-out infinite alternate; }
+@keyframes flutter { to { transform: rotate(8deg); } }
 @keyframes hop { 50% { transform: translateY(var(--hop)); } }
-.wag { transform-box: fill-box; transform-origin: 100% 100%; animation: wag 0.45s ease-in-out infinite alternate; }
-@keyframes wag { to { transform: rotate(-18deg); } }
 .crown { transform-box: fill-box; transform-origin: 50% 100%; animation: crown 1.8s ease-in-out infinite; }
 @keyframes crown { 50% { transform: translateY(-1.5px) rotate(-3deg); } }
 .evolve .flip { animation: pop 1.8s ease; }
@@ -341,6 +342,8 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 summary { font: 16px var(--title); cursor: pointer; min-height: 32px; }
 .past { padding-left: 22px; margin: 10px 0 0; display: grid; gap: 6px; font-size: 15px; }
 .more { margin-top: 18px; padding-top: 14px; border-top: 2px dashed var(--line-strong); }
+.push h3 { font-size: 16px; }
+.push .btn.wide { margin-top: 10px; }
 
 /* ---------- 명예의 전당 ---------- */
 .board { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 10px; }

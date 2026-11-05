@@ -215,6 +215,8 @@ function homeView() {
   let h = ''
   if (/^거북\d+$/.test(user(S.me.id).name))
     h += `<button class="hint" data-act="profile">👋 처음 오셨네요! 여기를 눌러 이름과 색을 정해 보세요</button>`
+  else if (pushState() === 'off' && Notification.permission === 'default' && !hintSeen())
+    h += `<button class="hint" data-act="push-hint">🔔 알림을 켜면 친구 소식과 토론일을 알려 드려요</button>`
   if (phase === 'picking')
     return (
       h +
@@ -644,6 +646,7 @@ function profileSheet() {
       .join('')}</fieldset>
     <button class="btn wide">저장</button>
   </form>
+  ${pushSection()}
   <details class="more"><summary>비밀번호 바꾸기</summary>
     <form data-form="password" class="form">
       <label>지금 비밀번호<input name="old" type="password" required autocomplete="current-password"></label>
@@ -652,6 +655,42 @@ function profileSheet() {
     </form>
   </details>
   <p class="soft center">아이디 <b>${esc(S.me.username)}</b> · <button class="link" data-act="logout">로그아웃</button> · <a class="link" href="guide.html">사용 가이드</a></p>`)
+}
+
+// ---------- 알림 (웹 푸시) ----------
+// 알림은 기기(브라우저)마다 켠다. 켜면 그 기기의 구독 주소를 서버에 맡기고, 서버가 소식이 생길 때 그 주소로 보낸다.
+const pushable = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+let mySub = null // 이 기기의 구독. 없으면 null
+
+async function loadPush() {
+  if (!pushable) return
+  const reg = await navigator.serviceWorker.getRegistration()
+  mySub = (await reg?.pushManager.getSubscription()) ?? null
+}
+
+// 'none' 이 브라우저는 못 받음 | 'blocked' 브라우저에서 막아 둠 | 'off' | 'on'
+const pushState = () =>
+  !pushable ? 'none' : Notification.permission === 'denied' ? 'blocked' : mySub && S.push?.endpoints.includes(mySub.endpoint) ? 'on' : 'off'
+
+const pushSection = () =>
+  `<section class="more push"><h3>알림</h3>${
+    {
+      none: `<p class="soft">이 브라우저에서는 알림을 켤 수 없어요. 아이폰은 Safari 의 공유 버튼에서 "홈 화면에 추가"로 설치한 다음, 홈 화면의 거북이 도서관을 열어서 켜 주세요.</p>`,
+      blocked: `<p class="soft">이 사이트의 알림이 브라우저에서 차단돼 있어요. 브라우저의 사이트 설정에서 알림을 허용한 뒤 다시 열어 주세요.</p>`,
+      off: `<p class="soft">친구가 읽은 쪽수를 기록했을 때, 책이나 토론일이 정해졌을 때, 토론 전날과 당일에 알려 드려요.</p>
+        <button type="button" class="btn wide" data-act="push-on">🔔 이 기기에서 알림 켜기</button>`,
+      on: `<p class="soft">이 기기에서 알림을 받고 있어요 🔔</p>
+        <div class="row"><button type="button" class="btn ghost grow" data-act="push-test">시험 알림 보내기</button><button type="button" class="btn ghost grow" data-act="push-off">알림 끄기</button></div>`,
+    }[pushState()]
+  }</section>`
+
+const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0))
+const hintSeen = () => {
+  try {
+    return localStorage.getItem('pushHint') === 'seen'
+  } catch {
+    return true // 저장소를 못 쓰는 브라우저에서는 권유를 계속 띄우지 않는다
+  }
 }
 
 function toast(msg, bad = false) {
@@ -720,8 +759,42 @@ const actions = {
     await fn?.()
   },
   profile: profileSheet,
+  'push-hint'() {
+    try {
+      localStorage.setItem('pushHint', 'seen')
+    } catch {
+      // 저장하지 못해도 창은 연다
+    }
+    profileSheet()
+  },
+  async 'push-on'() {
+    // 권한은 버튼을 누른 그 순간에 물어야 브라우저가 받아 준다. 그래서 다른 일보다 먼저 한다.
+    if ((await Notification.requestPermission()) !== 'granted') {
+      toast('알림 권한을 허용해야 켤 수 있어요', true)
+      return profileSheet()
+    }
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js')
+      await navigator.serviceWorker.ready
+      await (await reg.pushManager.getSubscription())?.unsubscribe() // 예전 구독이 남아 있으면 새로 받는다
+      mySub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(S.push.key) })
+      const { endpoint, keys } = mySub.toJSON()
+      await act('push/subscribe', { endpoint, p256dh: keys.p256dh, auth: keys.auth }, '알림을 켰어요 🔔')
+    } catch {
+      toast('알림을 켜지 못했어요. 잠시 뒤에 다시 해 주세요', true)
+    }
+    profileSheet()
+  },
+  async 'push-off'() {
+    const endpoint = mySub?.endpoint
+    await mySub?.unsubscribe().catch(() => {})
+    mySub = null
+    await act('push/unsubscribe', { endpoint }, '알림을 껐어요')
+    profileSheet()
+  },
+  'push-test': () => act('push/test', {}, '시험 알림을 보냈어요. 곧 도착해요 🔔'),
   async logout() {
-    await call('logout', {}).catch(() => {})
+    await call('logout', { endpoint: mySub?.endpoint }).catch(() => {}) // 이 기기로 가던 알림도 같이 끊긴다
     sheet.close()
     S = null
     raw = ''
@@ -950,4 +1023,8 @@ document.addEventListener('focusout', () => setTimeout(() => stale && !busy && !
 setInterval(refresh, 30000)
 document.addEventListener('visibilitychange', refresh)
 
-call('state').then(setState, () => render())
+if (pushable) navigator.serviceWorker.addEventListener('message', (e) => e.data === 'refresh' && refresh())
+loadPush()
+  .catch(() => {})
+  .then(() => call('state'))
+  .then(setState, () => render())

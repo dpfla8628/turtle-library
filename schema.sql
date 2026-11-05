@@ -85,3 +85,18 @@ CREATE TABLE IF NOT EXISTS questions (
   cat TEXT NOT NULL,
   body TEXT NOT NULL
 );
+
+-- 알림(웹 푸시): 알림을 켠 기기(브라우저)마다 구독 하나.
+CREATE TABLE IF NOT EXISTS push_subs (
+  endpoint TEXT PRIMARY KEY,           -- 브라우저 회사의 푸시 서버 주소
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  p256dh TEXT NOT NULL,                -- 기기의 공개키
+  auth TEXT NOT NULL,                  -- 기기의 비밀값
+  created_at INTEGER NOT NULL
+);
+
+-- 서버가 스스로 만들어 두는 값: 'vapid'(알림 서명 키), 'origin'(이 앱의 주소).
+CREATE TABLE IF NOT EXISTS config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

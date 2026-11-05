@@ -3,6 +3,8 @@ import { todayKST, unanimous, crownOf, nextPicker } from '../public/rules.js'
 import { buildDeck, drawCard } from './deck.js'
 import { hashPassword, verifyPassword, newToken, sha256 } from './auth.js'
 import { searchBooks, lookupBook } from './books.js'
+import { newVapidKeys, sendPush, isPushEndpoint } from './push.js'
+import { progressNews, bookNews, datesNews, rescheduleNews, questionNews, rolloverNews, reminderNews } from './news.js'
 
 const COLORS = ['peach', 'mint', 'sky', 'lemon', 'lilac', 'rose']
 const GENRES = ['fiction', 'nonfiction', 'essay']
@@ -44,20 +46,33 @@ function int(v, min, max, what) {
 const optInt = (v, min, max, what) => (v === '' || v == null ? null : int(v, min, max, what))
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url)
     try {
       if (!url.pathname.startsWith('/api/')) throw new Oops(404, '없는 주소예요')
-      return await api(req, env, url)
+      return await api(req, env, url, ctx)
     } catch (e) {
       if (e instanceof Oops) return json({ error: e.message }, e.status)
       console.error(e)
       return json({ error: '서버에서 문제가 생겼어요. 잠시 뒤에 다시 해 주세요' }, 500)
     }
   },
+
+  // 매일 아침(한국 시간 9시, wrangler.jsonc 의 crons): 넘길 책이 있으면 넘기고, 토론 전날과 당일을 알린다.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(daily(env.DB))
+  },
 }
 
-async function api(req, env, url) {
+async function daily(db) {
+  const now = Date.now()
+  const today = todayKST(new Date(now))
+  const news = (await rollover(db, now, today)) ?? []
+  const cur = await db.prepare('SELECT * FROM cycles WHERE closed = 0').first()
+  await notify(db, null, [...news, reminderNews(cur, today)])
+}
+
+async function api(req, env, url, ctx) {
   const db = env.DB
   const now = Date.now()
   const today = todayKST(new Date(now))
@@ -81,7 +96,11 @@ async function api(req, env, url) {
   const me = await auth(req, db, now)
 
   if (req.method === 'POST' && path === 'logout') {
-    await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(me.token_hash).run()
+    await db.batch([
+      db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(me.token_hash),
+      // 이 기기로 가던 알림도 끊는다 (기기가 자기 구독 주소를 같이 보내 준다).
+      db.prepare('DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?').bind(String(body.endpoint ?? ''), me.id),
+    ])
     return json({ ok: true }, 200, { 'set-cookie': cookie('', 0, secure) })
   }
 
@@ -89,17 +108,60 @@ async function api(req, env, url) {
   if (req.method === 'GET' && (path === 'search' || path === 'lookup'))
     return json(await findBooks(env.YES24_API_KEY, path, url.searchParams))
 
-  await rollover(db, now, today)
+  // 친구들에게 알릴 소식을 모은다. 책이 넘어갔으면 그 소식부터.
+  const news = (await rollover(db, now, today)) ?? []
 
   if (req.method === 'POST') {
     const handler = Object.hasOwn(POST, path) && POST[path]
     if (!handler) throw new Oops(404, '없는 주소예요')
     const cur = await db.prepare('SELECT * FROM cycles WHERE closed = 0').first()
-    await handler({ db, me, body, now, today, cur })
+    news.push(await handler({ db, me, body, now, today, cur, origin: url.origin }))
   } else if (path !== 'state') throw new Oops(404, '없는 주소예요')
+
+  // 알림은 응답을 기다리게 하지 않고 뒤에서 보낸다.
+  ctx.waitUntil(notify(db, me, news))
 
   // 모든 요청은 최신 전체 상태로 답한다. 화면은 받은 걸 그대로 다시 그린다.
   return json({ ...(await state(db, me, today)), search: Boolean(env.YES24_API_KEY) })
+}
+
+// ---- 알림 ----
+// 서명 키는 처음 필요할 때 서버가 만들어 DB 에 둔다. 배포하는 사람이 따로 설정할 것이 없다.
+async function vapidKeys(db) {
+  const saved = () => db.prepare("SELECT value FROM config WHERE key = 'vapid'").first()
+  let row = await saved()
+  if (!row) {
+    await db.prepare("INSERT OR IGNORE INTO config (key, value) VALUES ('vapid', ?)").bind(JSON.stringify(await newVapidKeys())).run()
+    row = await saved() // 동시에 만든 요청이 있었다면 먼저 들어간 키를 쓴다
+  }
+  return JSON.parse(row.value)
+}
+
+// 구독 하나로 보낸다. 기기에서 알림을 껐거나 앱을 지웠으면(404·410) 그 구독을 지운다.
+async function deliver(db, keys, contact, sub, message) {
+  const res = await sendPush(keys, sub, message, { contact })
+  if (res.status === 404 || res.status === 410) await db.prepare('DELETE FROM push_subs WHERE endpoint = ?').bind(sub.endpoint).run()
+  return res.status
+}
+
+// news: { to?: [회원 id], all?: true, title, body, tag } 들 (빈 값은 건너뛴다). to 도 all 도 없으면 나를 뺀 모두에게.
+async function notify(db, me, news) {
+  news = news.filter(Boolean)
+  if (!news.length) return
+  try {
+    const [subs, conf] = (await db.batch([db.prepare('SELECT * FROM push_subs'), db.prepare('SELECT key, value FROM config')])).map((r) => r.results)
+    if (!subs.length) return
+    const keys = JSON.parse(conf.find((c) => c.key === 'vapid').value)
+    const contact = conf.find((c) => c.key === 'origin')?.value
+    const jobs = []
+    for (const n of news)
+      for (const s of subs)
+        if (n.all || (n.to ? n.to.includes(s.user_id) : s.user_id !== me?.id))
+          jobs.push(deliver(db, keys, contact, s, { title: n.title, body: n.body, tag: n.tag }))
+    await Promise.allSettled(jobs)
+  } catch (e) {
+    console.error('알림을 보내지 못했다', e) // 알림 실패가 원래 요청을 망치면 안 된다
+  }
 }
 
 // ---- 책 찾기 ----
@@ -149,7 +211,7 @@ async function auth(req, db, now) {
     token_hash &&
     (await db
       .prepare(
-        'SELECT u.id, u.username, u.pw_hash FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires > ?',
+        'SELECT u.id, u.username, u.name, u.pw_hash FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires > ?',
       )
       .bind(token_hash, now)
       .first())
@@ -159,24 +221,24 @@ async function auth(req, db, now) {
 
 // ---- 사이클 넘기기 ----
 // 토론 다음 날이 되면 이번 책을 마감하고(우승자 기록) 다음 타자의 새 사이클을 연다.
-// ponytail: 크론 없이 누군가 접속할 때 처리한다. 아무도 안 들어오면 넘어가지 않지만, 그땐 볼 사람도 없다.
+// 누군가 접속할 때, 그리고 매일 아침 크론에서 확인한다. 실제로 넘어갔으면 알릴 소식을 돌려준다.
 async function rollover(db, now, today) {
   const cur = await db.prepare('SELECT * FROM cycles WHERE closed = 0').first()
   if (cur && !(cur.discussion_date && cur.discussion_date < today)) return
+  let winner = null
   if (cur) {
     const { results } = await db.prepare('SELECT user_id, finished_at FROM progress WHERE cycle_id = ?').bind(cur.id).all()
-    const done = await db
-      .prepare('UPDATE cycles SET closed = 1, winner_id = ? WHERE id = ? AND closed = 0')
-      .bind(crownOf(results), cur.id)
-      .run()
+    winner = crownOf(results)
+    const done = await db.prepare('UPDATE cycles SET closed = 1, winner_id = ? WHERE id = ? AND closed = 0').bind(winner, cur.id).run()
     if (!done.meta.changes) return // 동시에 들어온 다른 요청이 이미 마감했다
   }
-  const { results: users } = await db.prepare('SELECT id, ord FROM users').all()
+  const { results: users } = await db.prepare('SELECT id, ord, name FROM users').all()
+  const picker = nextPicker(users, cur?.picker_id ?? null)
   // 열린 사이클은 유니크 인덱스로 하나만 허용되므로, 경쟁에서 진 쪽은 조용히 무시된다.
-  await db
-    .prepare('INSERT OR IGNORE INTO cycles (picker_id, created_at) VALUES (?, ?)')
-    .bind(nextPicker(users, cur?.picker_id ?? null), now)
-    .run()
+  const opened = await db.prepare('INSERT OR IGNORE INTO cycles (picker_id, created_at) VALUES (?, ?)').bind(picker, now).run()
+  if (!opened.meta.changes) return
+  const who = (id) => users.find((u) => u.id === id)
+  return rolloverNews({ closed: cur, winner: who(winner), picker: who(picker), users })
 }
 
 // ---- 전체 상태 ----
@@ -184,7 +246,7 @@ async function rollover(db, now, today) {
 // 느려지면 지난 사이클의 메모·질문을 따로 불러오게 쪼갤 것.
 async function state(db, me, today) {
   const q = (sql) => db.prepare(sql)
-  const [users, cycles, avail, progress, questions, notes, books] = (
+  const [users, cycles, avail, progress, questions, notes, books, conf, subs] = (
     await db.batch([
       q('SELECT id, name, color, ord FROM users ORDER BY ord'),
       q('SELECT * FROM cycles ORDER BY id'),
@@ -193,8 +255,11 @@ async function state(db, me, today) {
       q('SELECT * FROM questions ORDER BY sec, id'),
       q('SELECT * FROM notes ORDER BY id'),
       q('SELECT * FROM books ORDER BY id'),
+      q("SELECT value FROM config WHERE key = 'vapid'"),
+      db.prepare('SELECT endpoint FROM push_subs WHERE user_id = ?').bind(me.id),
     ])
   ).map((r) => r.results)
+  const vapid = conf[0] ? JSON.parse(conf[0].value) : await vapidKeys(db)
   return {
     me: { id: me.id, username: me.username },
     today,
@@ -205,6 +270,8 @@ async function state(db, me, today) {
     questions,
     notes,
     books,
+    // 알림: 구독할 때 쓰는 공개키, 그리고 알림이 켜져 있는 내 기기들
+    push: { key: vapid.publicKey, endpoints: subs.map((s) => s.endpoint) },
   }
 }
 
@@ -214,6 +281,40 @@ const needBook = (cur) => {
 
 // ---- 변경 요청 ----
 const POST = {
+  // 알림: 이 기기(브라우저)의 구독을 저장한다. 같은 기기로 다른 친구가 로그인하면 그 친구 것으로 바뀐다.
+  async 'push/subscribe'({ db, me, body, now, origin }) {
+    const endpoint = String(body.endpoint ?? '')
+    const p256dh = String(body.p256dh ?? '')
+    const secret = String(body.auth ?? '')
+    if (endpoint.length > 1000 || !isPushEndpoint(endpoint)) throw new Oops(400, '이 브라우저의 알림 주소는 쓸 수 없어요')
+    if (!/^[\w-]{80,100}$/.test(p256dh) || !/^[\w-]{16,40}$/.test(secret)) throw new Oops(400, '알림 정보가 올바르지 않아요')
+    await vapidKeys(db)
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO push_subs (endpoint, user_id, p256dh, auth, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+           ON CONFLICT (endpoint) DO UPDATE SET user_id = ?2, p256dh = ?3, auth = ?4`,
+        )
+        .bind(endpoint, me.id, p256dh, secret, now),
+      // 푸시 서버에 "누가 보내는지"로 알려 줄 이 앱의 주소
+      db.prepare("INSERT INTO config (key, value) VALUES ('origin', ?1) ON CONFLICT (key) DO UPDATE SET value = ?1").bind(origin),
+    ])
+  },
+
+  async 'push/unsubscribe'({ db, me, body }) {
+    await db.prepare('DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?').bind(String(body.endpoint ?? ''), me.id).run()
+  },
+
+  // 내 기기들로 시험 알림을 보낸다. 하나도 못 보냈으면 이유(푸시 서버의 응답 번호)를 알려 준다.
+  async 'push/test'({ db, me, origin }) {
+    const { results: subs } = await db.prepare('SELECT * FROM push_subs WHERE user_id = ?').bind(me.id).all()
+    if (!subs.length) throw new Oops(409, '알림이 켜진 기기가 없어요. 먼저 알림을 켜 주세요')
+    const keys = await vapidKeys(db)
+    const message = { title: '🐢 거북이 도서관', body: `${me.name}님, 알림이 잘 도착했어요!`, tag: 'test' }
+    const codes = await Promise.all(subs.map((s) => deliver(db, keys, origin, s, message).catch(() => 0)))
+    if (!codes.some((c) => c >= 200 && c < 300)) throw new Oops(502, `알림을 보내지 못했어요 (응답 ${codes.join(', ')}). 알림을 껐다가 다시 켜 보세요`)
+  },
+
   // 이번 타자가 책을 등록(또는 수정)한다.
   async book({ db, me, body, now, cur }) {
     if (cur.picker_id !== me.id) throw new Oops(403, '이번 책은 다른 친구가 고를 차례예요')
@@ -239,6 +340,7 @@ const POST = {
           db.prepare('INSERT INTO questions (cycle_id, sec, cat, body) VALUES (?, ?, ?, ?)').bind(cur.id, c.sec, c.cat, c.body),
         )
     await db.batch(stmts)
+    return cur.title ? null : bookNews({ name: me.name, book: { title } }) // 고칠 때는 알리지 않는다
   },
 
   // 가능한 날짜를 저장한다. 전원이 확정했고 겹치는 날이 있으면 그중 하루를 뽑아 토론일로 정한다.
@@ -269,19 +371,18 @@ const POST = {
       users.map((u) => u.id),
       today,
     )
-    if (common?.length)
-      await db
-        .prepare('UPDATE cycles SET discussion_date = ? WHERE id = ? AND discussion_date IS NULL')
-        .bind(common[Math.floor(Math.random() * common.length)], cur.id)
-        .run()
+    const decided = common?.length ? common[Math.floor(Math.random() * common.length)] : null
+    if (decided) await db.prepare('UPDATE cycles SET discussion_date = ? WHERE id = ? AND discussion_date IS NULL').bind(decided, cur.id).run()
+    return confirmed ? datesNews({ name: me.name, me: me.id, book: cur, users, avail, decided }) : null
   },
 
   // 정해진 토론일을 취소하고 다시 고른다. 골라 둔 날짜는 남기고 확정만 푼다.
-  async reschedule({ db, cur }) {
+  async reschedule({ db, me, cur }) {
     await db.batch([
       db.prepare('UPDATE cycles SET discussion_date = NULL WHERE id = ?').bind(cur.id),
       db.prepare('UPDATE availability SET confirmed = 0 WHERE cycle_id = ?').bind(cur.id),
     ])
+    return cur.discussion_date ? rescheduleNews({ name: me.name }) : null
   },
 
   // 모임 도서를 어디까지 읽었는지. 지난 모임 책도 서재에서 이어서 기록할 수 있다(우승자는 안 바뀐다).
@@ -292,6 +393,7 @@ const POST = {
         : await db.prepare('SELECT * FROM cycles WHERE id = ?').bind(int(body.cycle_id, 1, 1e9, '책')).first()
     needBook(cycle)
     const pages = int(body.pages, 0, cycle.pages, '읽은 쪽수')
+    const { results: was } = await db.prepare('SELECT user_id, pages_read, finished_at FROM progress WHERE cycle_id = ?').bind(cycle.id).all()
     await db
       .prepare(
         `INSERT INTO progress (cycle_id, user_id, pages_read, finished_at) VALUES (?1, ?2, ?3, ?4)
@@ -300,14 +402,21 @@ const POST = {
       )
       .bind(cycle.id, me.id, pages, pages >= cycle.pages ? now : null)
       .run()
+    if (cycle.closed) return null // 지난 책을 이어 읽는 것은 조용히 기록만 한다
+    return progressNews({
+      name: me.name,
+      book: cycle,
+      before: was.find((p) => p.user_id === me.id)?.pages_read ?? 0,
+      after: pages,
+      first: !was.some((p) => p.finished_at != null),
+    })
   },
 
   async question({ db, me, body, cur }) {
     needBook(cur)
-    await db
-      .prepare("INSERT INTO questions (cycle_id, user_id, sec, cat, body) VALUES (?, ?, 1, '우리의 질문', ?)")
-      .bind(cur.id, me.id, text(body.body, 300, '질문'))
-      .run()
+    const asked = text(body.body, 300, '질문')
+    await db.prepare("INSERT INTO questions (cycle_id, user_id, sec, cat, body) VALUES (?, ?, 1, '우리의 질문', ?)").bind(cur.id, me.id, asked).run()
+    return questionNews({ name: me.name, text: asked })
   },
 
   // 기본 카드는 책에 안 맞으면 누구나 뺄 수 있고, 친구가 쓴 카드는 쓴 사람만 지운다.
