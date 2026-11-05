@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS push_subs (
   user_id INTEGER NOT NULL REFERENCES users(id),
   p256dh TEXT NOT NULL,                -- 기기의 공개키
   auth TEXT NOT NULL,                  -- 기기의 비밀값
+  quiet INTEGER NOT NULL DEFAULT 0,    -- 1 이면 이 기기는 친구 독서 소식 알림을 받지 않는다 (일정 알림만)
   created_at INTEGER NOT NULL
 );
 

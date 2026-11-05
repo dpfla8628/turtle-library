@@ -7,3 +7,5 @@ users.local.sql
 accounts.local.txt
 # 조사 원자료 (출처 발췌가 섞여 있어 저장소에는 올리지 않는다. 정리본은 reports/)
 research_notes/
+# 디자인 점검 도구가 만드는 설정·캐시
+.impeccable/

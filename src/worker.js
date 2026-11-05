@@ -4,7 +4,7 @@ import { buildDeck, drawCard } from './deck.js'
 import { hashPassword, verifyPassword, newToken, sha256 } from './auth.js'
 import { searchBooks, lookupBook } from './books.js'
 import { newVapidKeys, sendPush, isPushEndpoint } from './push.js'
-import { progressNews, bookNews, datesNews, rescheduleNews, questionNews, rolloverNews, reminderNews } from './news.js'
+import { progressNews, bookNews, datesNews, rescheduleNews, reopenNews, questionNews, rolloverNews, reminderNews, nudgeNews } from './news.js'
 
 const COLORS = ['peach', 'mint', 'sky', 'lemon', 'lilac', 'rose']
 const GENRES = ['fiction', 'nonfiction', 'essay']
@@ -68,8 +68,14 @@ async function daily(db) {
   const now = Date.now()
   const today = todayKST(new Date(now))
   const news = (await rollover(db, now, today)) ?? []
-  const cur = await db.prepare('SELECT * FROM cycles WHERE closed = 0').first()
-  await notify(db, null, [...news, reminderNews(cur, today)])
+  const [[cur], users, avail] = (
+    await db.batch([
+      db.prepare('SELECT * FROM cycles WHERE closed = 0'),
+      db.prepare('SELECT id FROM users'),
+      db.prepare('SELECT a.user_id, a.confirmed FROM availability a JOIN cycles c ON c.id = a.cycle_id WHERE c.closed = 0'),
+    ])
+  ).map((r) => r.results)
+  await notify(db, null, [...news, reminderNews(cur, today), nudgeNews({ cycle: cur, today, now, users, avail })])
 }
 
 async function api(req, env, url, ctx) {
@@ -144,7 +150,7 @@ async function deliver(db, keys, contact, sub, message) {
   return res.status
 }
 
-// news: { to?: [회원 id], all?: true, title, body, tag } 들 (빈 값은 건너뛴다). to 도 all 도 없으면 나를 뺀 모두에게.
+// news: src/news.js 가 만든 알림들 (빈 값은 건너뛴다). 누구에게 갈지는 to / all / kind 가 정한다.
 async function notify(db, me, news) {
   news = news.filter(Boolean)
   if (!news.length) return
@@ -156,7 +162,7 @@ async function notify(db, me, news) {
     const jobs = []
     for (const n of news)
       for (const s of subs)
-        if (n.all || (n.to ? n.to.includes(s.user_id) : s.user_id !== me?.id))
+        if ((n.all || (n.to ? n.to.includes(s.user_id) : s.user_id !== me?.id)) && !(n.kind === 'social' && s.quiet))
           jobs.push(deliver(db, keys, contact, s, { title: n.title, body: n.body, tag: n.tag }))
     await Promise.allSettled(jobs)
   } catch (e) {
@@ -256,7 +262,7 @@ async function state(db, me, today) {
       q('SELECT * FROM notes ORDER BY id'),
       q('SELECT * FROM books ORDER BY id'),
       q("SELECT value FROM config WHERE key = 'vapid'"),
-      db.prepare('SELECT endpoint FROM push_subs WHERE user_id = ?').bind(me.id),
+      db.prepare('SELECT endpoint, quiet FROM push_subs WHERE user_id = ?').bind(me.id),
     ])
   ).map((r) => r.results)
   const vapid = conf[0] ? JSON.parse(conf[0].value) : await vapidKeys(db)
@@ -270,8 +276,8 @@ async function state(db, me, today) {
     questions,
     notes,
     books,
-    // 알림: 구독할 때 쓰는 공개키, 그리고 알림이 켜져 있는 내 기기들
-    push: { key: vapid.publicKey, endpoints: subs.map((s) => s.endpoint) },
+    // 알림: 구독할 때 쓰는 공개키, 그리고 알림이 켜져 있는 내 기기들 (quiet: 친구 독서 소식은 끔)
+    push: { key: vapid.publicKey, subs },
   }
 }
 
@@ -305,14 +311,23 @@ const POST = {
     await db.prepare('DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?').bind(String(body.endpoint ?? ''), me.id).run()
   },
 
-  // 내 기기들로 시험 알림을 보낸다. 하나도 못 보냈으면 이유(푸시 서버의 응답 번호)를 알려 준다.
-  async 'push/test'({ db, me, origin }) {
-    const { results: subs } = await db.prepare('SELECT * FROM push_subs WHERE user_id = ?').bind(me.id).all()
-    if (!subs.length) throw new Oops(409, '알림이 켜진 기기가 없어요. 먼저 알림을 켜 주세요')
-    const keys = await vapidKeys(db)
+  // 이 기기에서 "친구 독서 소식"(진행도·진화·완독·질문) 알림만 끄거나 켠다. 일정 알림은 계속 온다.
+  async 'push/quiet'({ db, me, body }) {
+    if (typeof body.quiet !== 'boolean') throw new Oops(400, '알림 설정 값이 올바르지 않아요')
+    const done = await db
+      .prepare('UPDATE push_subs SET quiet = ? WHERE endpoint = ? AND user_id = ?')
+      .bind(body.quiet ? 1 : 0, String(body.endpoint ?? ''), me.id)
+      .run()
+    if (!done.meta.changes) throw new Oops(404, '이 기기는 알림이 켜져 있지 않아요')
+  },
+
+  // 이 기기로 시험 알림을 보낸다. 못 보냈으면 이유(푸시 서버의 응답 번호)를 알려 준다.
+  async 'push/test'({ db, me, body, origin }) {
+    const sub = await db.prepare('SELECT * FROM push_subs WHERE endpoint = ? AND user_id = ?').bind(String(body.endpoint ?? ''), me.id).first()
+    if (!sub) throw new Oops(409, '이 기기는 알림이 켜져 있지 않아요. 먼저 알림을 켜 주세요')
     const message = { title: '🐢 거북이 도서관', body: `${me.name}님, 알림이 잘 도착했어요!`, tag: 'test' }
-    const codes = await Promise.all(subs.map((s) => deliver(db, keys, origin, s, message).catch(() => 0)))
-    if (!codes.some((c) => c >= 200 && c < 300)) throw new Oops(502, `알림을 보내지 못했어요 (응답 ${codes.join(', ')}). 알림을 껐다가 다시 켜 보세요`)
+    const code = await deliver(db, await vapidKeys(db), origin, sub, message).catch(() => 0)
+    if (code < 200 || code >= 300) throw new Oops(502, `알림을 보내지 못했어요 (응답 ${code}). 알림을 껐다가 다시 켜 보세요`)
   },
 
   // 이번 타자가 책을 등록(또는 수정)한다.
@@ -340,18 +355,24 @@ const POST = {
           db.prepare('INSERT INTO questions (cycle_id, sec, cat, body) VALUES (?, ?, ?, ?)').bind(cur.id, c.sec, c.cat, c.body),
         )
     await db.batch(stmts)
-    return cur.title ? null : bookNews({ name: me.name, book: { title } }) // 고칠 때는 알리지 않는다
+    return cur.title ? null : bookNews({ name: me.name, book: { id: cur.id, title } }) // 고칠 때는 알리지 않는다
   },
 
   // 가능한 날짜를 저장한다. 전원이 확정했고 겹치는 날이 있으면 그중 하루를 뽑아 토론일로 정한다.
   async dates({ db, me, body, today, cur }) {
     needBook(cur)
     if (cur.discussion_date) throw new Oops(409, '토론일이 이미 정해졌어요')
-    const ok = Array.isArray(body.dates) && body.dates.length <= 120 && body.dates.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    if (!ok) throw new Oops(400, '날짜 형식이 올바르지 않아요')
-    const dates = [...new Set(body.dates)].sort()
+    // 화면은 내일부터 90일 안의 날만 고르게 한다. 서버도 같은 범위의 실제 날짜만 받는다 (지난 날은 조용히 버린다).
+    const last = new Date(Date.parse(`${today}T00:00:00Z`) + 90 * 86400e3).toISOString().slice(0, 10)
+    const real = (d) => {
+      if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false
+      const at = Date.parse(`${d}T00:00:00Z`) // 13월처럼 없는 날짜는 NaN, 2월 30일은 3월로 넘어간다
+      return !Number.isNaN(at) && new Date(at).toISOString().slice(0, 10) === d
+    }
+    if (!Array.isArray(body.dates) || body.dates.length > 120 || !body.dates.every((d) => real(d) && d <= last)) throw new Oops(400, '날짜가 올바르지 않아요')
+    const dates = [...new Set(body.dates)].filter((d) => d > today).sort()
     const confirmed = body.confirmed ? 1 : 0
-    if (confirmed && !dates.some((d) => d > today)) throw new Oops(400, '가능한 날짜를 하루 이상 골라 주세요')
+    if (confirmed && !dates.length) throw new Oops(400, '가능한 날짜를 하루 이상 골라 주세요')
     await db
       .prepare(
         `INSERT INTO availability (cycle_id, user_id, dates, confirmed) VALUES (?1, ?2, ?3, ?4)
@@ -371,9 +392,12 @@ const POST = {
       users.map((u) => u.id),
       today,
     )
-    const decided = common?.length ? common[Math.floor(Math.random() * common.length)] : null
-    if (decided) await db.prepare('UPDATE cycles SET discussion_date = ? WHERE id = ? AND discussion_date IS NULL').bind(decided, cur.id).run()
-    return confirmed ? datesNews({ name: me.name, me: me.id, book: cur, users, avail, decided }) : null
+    let decided = common?.length ? common[Math.floor(Math.random() * common.length)] : null
+    if (decided) {
+      const set = await db.prepare('UPDATE cycles SET discussion_date = ? WHERE id = ? AND discussion_date IS NULL').bind(decided, cur.id).run()
+      if (!set.meta.changes) return null // 동시에 들어온 다른 요청이 먼저 정했다. 알림은 그쪽이 보낸다
+    }
+    return confirmed ? datesNews({ name: me.name, me: me.id, book: cur, users, avail, decided, common }) : null
   },
 
   // 정해진 토론일을 취소하고 다시 고른다. 골라 둔 날짜는 남기고 확정만 푼다.
@@ -382,7 +406,22 @@ const POST = {
       db.prepare('UPDATE cycles SET discussion_date = NULL WHERE id = ?').bind(cur.id),
       db.prepare('UPDATE availability SET confirmed = 0 WHERE cycle_id = ?').bind(cur.id),
     ])
-    return cur.discussion_date ? rescheduleNews({ name: me.name }) : null
+    return cur.discussion_date ? rescheduleNews({ name: me.name, book: cur }) : null
+  },
+
+  // 방금 넘어간 것을 되돌린다. 토론을 못 했는데 날짜가 지나 책이 넘어가 버렸을 때 쓴다.
+  // 새 책이 아직 안 정해진 동안에만 된다: 빈 새 사이클을 지우고 이전 책을 다시 열어 날짜부터 다시 정한다.
+  async reopen({ db, me, cur }) {
+    if (cur.title) throw new Oops(409, '새 책이 이미 정해져서 되돌릴 수 없어요')
+    const prev = await db.prepare('SELECT * FROM cycles WHERE closed = 1 ORDER BY id DESC LIMIT 1').first()
+    if (!prev) throw new Oops(409, '되돌릴 지난 책이 없어요')
+    // 세 문장 모두 "이전 책이 아직 마감 상태일 때만" 일한다. 같은 요청이 동시에 두 번 들어와도 한 번만 되돌려진다.
+    const [, , reopened] = await db.batch([
+      db.prepare('UPDATE availability SET confirmed = 0 WHERE cycle_id = ?1 AND (SELECT closed FROM cycles WHERE id = ?1) = 1').bind(prev.id),
+      db.prepare('DELETE FROM cycles WHERE id = ? AND title IS NULL').bind(cur.id), // 열린 사이클은 하나뿐이어야 하므로 다시 열기 전에 지운다
+      db.prepare('UPDATE cycles SET closed = 0, winner_id = NULL, discussion_date = NULL WHERE id = ? AND closed = 1').bind(prev.id),
+    ])
+    return reopened.meta.changes ? reopenNews({ name: me.name, book: prev }) : null
   },
 
   // 모임 도서를 어디까지 읽었는지. 지난 모임 책도 서재에서 이어서 기록할 수 있다(우승자는 안 바뀐다).
@@ -403,12 +442,16 @@ const POST = {
       .bind(cycle.id, me.id, pages, pages >= cycle.pages ? now : null)
       .run()
     if (cycle.closed) return null // 지난 책을 이어 읽는 것은 조용히 기록만 한다
+    const winner =
+      pages >= cycle.pages &&
+      (await db.prepare('SELECT user_id FROM progress WHERE cycle_id = ? AND finished_at IS NOT NULL ORDER BY finished_at, user_id LIMIT 1').bind(cycle.id).first())
     return progressNews({
       name: me.name,
+      userId: me.id,
       book: cycle,
       before: was.find((p) => p.user_id === me.id)?.pages_read ?? 0,
       after: pages,
-      first: !was.some((p) => p.finished_at != null),
+      first: winner?.user_id === me.id,
     })
   },
 
@@ -416,7 +459,7 @@ const POST = {
     needBook(cur)
     const asked = text(body.body, 300, '질문')
     await db.prepare("INSERT INTO questions (cycle_id, user_id, sec, cat, body) VALUES (?, ?, 1, '우리의 질문', ?)").bind(cur.id, me.id, asked).run()
-    return questionNews({ name: me.name, text: asked })
+    return questionNews({ name: me.name, userId: me.id, book: cur, text: asked })
   },
 
   // 기본 카드는 책에 안 맞으면 누구나 뺄 수 있고, 친구가 쓴 카드는 쓴 사람만 지운다.

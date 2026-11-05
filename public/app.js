@@ -212,6 +212,7 @@ function homeView() {
   const picker = user(c.picker_id)
   const mine = c.picker_id === S.me.id
   const nth = `${S.cycles.length}번째 책`
+  const previous = S.cycles.findLast((item) => item.closed && item.title)
   let h = ''
   if (/^거북\d+$/.test(user(S.me.id).name))
     h += `<button class="hint" data-act="profile">👋 처음 오셨네요! 여기를 눌러 이름과 색을 정해 보세요</button>`
@@ -223,7 +224,8 @@ function homeView() {
       (mine
         ? `<section class="card"><p class="eyebrow">${nth} · 내가 고를 차례</p><h2>이번에 함께 읽을 책을 골라 주세요</h2>${finder()}${bookForm()}</section>`
         : `<section class="card center"><p class="eyebrow">${nth}</p><h2>${esc(picker.name)}님이 책을 고르는 중이에요</h2>
-           <p class="soft">책이 정해지면 여기에 나타나요. 조금만 기다려 주세요 🐢</p></section>`)
+           <p class="soft">책이 정해지면 여기에 나타나요. 조금만 기다려 주세요 🐢</p></section>`) +
+      (previous ? `<p class="center"><button class="link" data-act="reopen">지난 토론을 아직 못 했나요? 되돌리기</button></p>` : '')
     )
   h += `<section class="card book">
     ${cover(c.title)}
@@ -286,7 +288,7 @@ function calendarCard(c) {
     const who = others.filter((a) => a.dates.includes(date))
     const all = on && who.length === S.users.length - 1
     cells += `<button class="day${on ? ' on' : ''}${all ? ' all' : ''}" data-act="day" data-date="${date}" ${date < first || date > last ? 'disabled' : ''}
-      aria-pressed="${on}" aria-label="${fmtDate(date)}${who.length ? `, 친구 ${who.length}명 가능` : ''}">
+      aria-pressed="${on}" aria-label="${fmtDate(date)}, ${on ? '선택됨' : '선택 안 됨'}${who.length ? `, ${esc(who.map((a) => user(a.user_id).name).join(', '))} 가능` : ''}">
       ${d}<span class="dots">${who.map((a) => `<i class="c-${user(a.user_id).color}"></i>`).join('')}</span></button>`
   }
 
@@ -366,12 +368,12 @@ function noteItem(n, cycle) {
   const veil = veiled(n, cycle)
   return `<li class="note k-${n.kind} c-${u.color}${veil ? ' veil' : ''}${n.body.length > 220 ? ' long' : ''}">
     <header><i></i><b>${esc(u.name)}</b><span class="kind">${KIND[n.kind]}</span>${n.page ? `<span class="pg">p.${n.page}</span>` : ''}<time>${fmtStamp(n.created_at)}</time></header>
-    <div class="inner">
+    ${veil ? '<div class="inner spoiler-shape" aria-hidden="true"><span></span><span></span><span></span></div>' : `<div class="inner">
       ${n.rating ? stars(n.rating) : ''}
       <p class="body">${esc(n.body)}</p>
       ${n.body.length > 220 ? `<button class="link" data-act="more">더 보기</button>` : ''}
       ${mine ? `<footer><button class="link" data-act="note-edit" data-id="${n.id}">고치기</button><button class="link" data-act="note-del" data-id="${n.id}">지우기</button></footer>` : ''}
-    </div>
+    </div>`}
     ${veil ? `<button class="unveil" data-act="reveal" data-id="${n.id}">아직 안 읽은 부분의 기록이에요 (p.${n.page})<b>눌러서 보기</b></button>` : ''}
   </li>`
 }
@@ -670,7 +672,9 @@ async function loadPush() {
 
 // 'none' 이 브라우저는 못 받음 | 'blocked' 브라우저에서 막아 둠 | 'off' | 'on'
 const pushState = () =>
-  !pushable ? 'none' : Notification.permission === 'denied' ? 'blocked' : mySub && S.push?.endpoints.includes(mySub.endpoint) ? 'on' : 'off'
+  !pushable ? 'none' : Notification.permission === 'denied' ? 'blocked' : mySub && S.push?.subs?.some((sub) => sub.endpoint === mySub.endpoint) ? 'on' : 'off'
+
+const myPush = () => S.push?.subs?.find((sub) => sub.endpoint === mySub?.endpoint)
 
 const pushSection = () =>
   `<section class="more push"><h3>알림</h3>${
@@ -680,6 +684,8 @@ const pushSection = () =>
       off: `<p class="soft">친구가 읽은 쪽수를 기록했을 때, 책이나 토론일이 정해졌을 때, 토론 전날과 당일에 알려 드려요.</p>
         <button type="button" class="btn wide" data-act="push-on">🔔 이 기기에서 알림 켜기</button>`,
       on: `<p class="soft">이 기기에서 알림을 받고 있어요 🔔</p>
+        <button type="button" class="btn ghost wide" data-act="push-quiet" role="switch" aria-checked="${!myPush()?.quiet}">친구 독서 소식 알림: ${myPush()?.quiet ? '꺼짐' : '켜짐'}</button>
+        <p class="soft">책과 토론 일정 알림은 계속 와요.</p>
         <div class="row"><button type="button" class="btn ghost grow" data-act="push-test">시험 알림 보내기</button><button type="button" class="btn ghost grow" data-act="push-off">알림 끄기</button></div>`,
     }[pushState()]
   }</section>`
@@ -776,10 +782,22 @@ const actions = {
     try {
       const reg = await navigator.serviceWorker.register('sw.js')
       await navigator.serviceWorker.ready
-      await (await reg.pushManager.getSubscription())?.unsubscribe() // 예전 구독이 남아 있으면 새로 받는다
-      mySub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(S.push.key) })
-      const { endpoint, keys } = mySub.toJSON()
-      await act('push/subscribe', { endpoint, p256dh: keys.p256dh, auth: keys.auth }, '알림을 켰어요 🔔')
+      // 남아 있던 구독은 버리고 새로 받는다. 예전 것은 이미 만료됐거나 다른 서명 키로 만든 것일 수 있다.
+      const stale = await reg.pushManager.getSubscription()
+      if (stale) {
+        await call('push/unsubscribe', { endpoint: stale.endpoint }).catch(() => {})
+        await stale.unsubscribe()
+      }
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(S.push.key) })
+      const { endpoint, keys } = sub.toJSON()
+      if (await act('push/subscribe', { endpoint, p256dh: keys.p256dh, auth: keys.auth }, '알림을 켰어요 🔔')) {
+        mySub = sub
+        render()
+      } else {
+        // 서버에 맡기지 못했으면 기기 쪽 구독도 없애 둘이 어긋나지 않게 한다
+        await sub.unsubscribe().catch(() => {})
+        mySub = null
+      }
     } catch {
       toast('알림을 켜지 못했어요. 잠시 뒤에 다시 해 주세요', true)
     }
@@ -787,12 +805,15 @@ const actions = {
   },
   async 'push-off'() {
     const endpoint = mySub?.endpoint
-    await mySub?.unsubscribe().catch(() => {})
-    mySub = null
-    await act('push/unsubscribe', { endpoint }, '알림을 껐어요')
+    if (!(await act('push/unsubscribe', { endpoint }, '알림을 껐어요'))) return toast('다시 시도해 주세요', true)
+    if (await mySub?.unsubscribe().catch(() => false)) mySub = null
+    render()
     profileSheet()
   },
-  'push-test': () => act('push/test', {}, '시험 알림을 보냈어요. 곧 도착해요 🔔'),
+  async 'push-quiet'() {
+    if (await act('push/quiet', { endpoint: mySub.endpoint, quiet: !myPush()?.quiet }, '알림 설정을 바꿨어요')) profileSheet()
+  },
+  'push-test': () => act('push/test', { endpoint: mySub.endpoint }, '시험 알림을 보냈어요. 곧 도착해요 🔔'),
   async logout() {
     await call('logout', { endpoint: mySub?.endpoint }).catch(() => {}) // 이 기기로 가던 알림도 같이 끊긴다
     sheet.close()
@@ -839,6 +860,8 @@ const actions = {
       ui.month = null
       await act('reschedule', {}, '날짜를 다시 골라 주세요')
     }),
+  reopen: () =>
+    confirmSheet('지난 책으로 돌아갈까요?', '방금 넘어간 빈 책 차례를 지우고, 지난 책을 다시 열어요. 토론일을 모두 다시 골라야 해요.', '되돌리기', () => act('reopen', {}, '지난 책을 다시 열었어요')),
 
   // 진행도
   async 'save-progress'(el) {

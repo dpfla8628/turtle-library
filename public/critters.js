@@ -17,7 +17,7 @@ const wMouth = (x, y) => line(`M${x - 4.6} ${y} q2.3 3 4.6 0 q2.3 3 4.6 0`)
 // 70%까지는 계속 거북이다. 읽을수록 몸이 커지고(SIZE) 머리띠 색이 바뀌며(BAND), 70%부터는 달리는 자세가 된다.
 // 100%에서만 토끼가 된다. 모두 오른쪽을 보고, 발바닥이 y=94 근처에 닿는다.
 const SIZE = [0.64, 0.8, 0.92, 1] // 거북이 몸 크기 (발바닥 가운데를 기준으로 줄인다)
-const BAND = [null, ['#ffffff', '#d9c7b4'], ['#74aaf2', '#4c84d8'], ['#f2665c', '#cf4a41']] // 머리띠 [색, 테두리]: 없음 → 흰색 → 파랑 → 빨강
+const BAND = [null, ['#ffffff', '#8e7464'], ['#74aaf2', '#355f9b'], ['#f2665c', '#a83931']] // 머리띠 [색, 테두리]: 없음 → 흰색 → 파랑 → 빨강
 const SKIN = '#cdebb5'
 const LEG = '#b5dc98'
 
@@ -48,7 +48,7 @@ function turtle(stage) {
     <rect x="6" y="81" width="68" height="8" rx="4" fill="var(--cd)"/>
     ${BAND[stage] ? headband(BAND[stage], run) : ''}
     ${eyes(75, 86, 64)}${run ? `<path d="M77.3 69 h6.4 a3.2 3.6 0 0 1 -6.4 0z" fill="${INK}"/>` : smile(80.5, 70)}`
-  // 달리는 거북이: 몸을 앞으로 기울이고, 걸을 때만 보이는 바람 줄(.dash)을 뒤에 둔다
+  // 달리는 거북이: 몸을 앞으로 기울이고, 서 있을 때도 옅게 보이는 바람 줄(.dash)을 뒤에 둔다
   return run
     ? `<path class="dash" d="M0 55 h8 M-4 64 h11 M1 73 h6" fill="none" stroke="#d6c2ad" stroke-width="2.4" stroke-linecap="round"/><g transform="rotate(4 40 92)">${body}</g>`
     : body
