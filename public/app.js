@@ -71,9 +71,15 @@ function setState(next, passive = false) {
   raw = json
   S = next
   // 글을 쓰는 중이면 화면을 갈아엎지 않고 미뤄 둔다.
-  if (passive && (sheet.open || $('#view :is(input, textarea, select):focus'))) stale = true
+  if (passive && typing()) stale = true
   else render()
 }
+
+// 시트가 열려 있거나, 입력 칸에 커서가 있거나, 책 고르는 폼에 적어 둔 값이 있으면 '쓰는 중'으로 본다.
+const typing = () =>
+  sheet.open ||
+  $('#view :is(input, textarea, select):focus') ||
+  [...document.querySelectorAll('#view form :is(input:not([type=radio]), textarea)')].some((el) => el.value)
 
 // 변경 요청 → 새 상태 반영. 실패하면 이유를 알려 주고 false.
 async function act(path, body, done) {
@@ -213,7 +219,7 @@ function homeView() {
     return (
       h +
       (mine
-        ? `<section class="card"><p class="eyebrow">${nth} · 내가 고를 차례</p><h2>이번에 함께 읽을 책을 골라 주세요</h2>${bookForm()}</section>`
+        ? `<section class="card"><p class="eyebrow">${nth} · 내가 고를 차례</p><h2>이번에 함께 읽을 책을 골라 주세요</h2>${finder()}${bookForm()}</section>`
         : `<section class="card center"><p class="eyebrow">${nth}</p><h2>${esc(picker.name)}님이 책을 고르는 중이에요</h2>
            <p class="soft">책이 정해지면 여기에 나타나요. 조금만 기다려 주세요 🐢</p></section>`)
     )
@@ -229,6 +235,17 @@ function homeView() {
   h += phase === 'scheduling' ? calendarCard(c) : ddayCard(c, phase)
   return h + progressCard(c)
 }
+
+// 책 찾기 칸. 서버에 예스24 Open API 키가 설정돼 있을 때만 보인다. 고르면 바로 아래 폼에 제목·지은이·쪽수가 채워진다.
+const finder = () =>
+  S.search
+    ? `<div class="find">
+        <label>책 찾기 <small>제목이나 지은이로 찾아서 고르면 쪽수까지 채워져요</small>
+          <span class="find-row"><input type="search" enterkeyhint="search" autocomplete="off" maxlength="50" placeholder="예: 모순">
+          <button type="button" class="btn small" data-act="find">찾기</button></span></label>
+        <ul class="found" hidden></ul>
+      </div>`
+    : ''
 
 function bookForm(c) {
   const genre = c?.genre ?? 'fiction'
@@ -649,6 +666,45 @@ function toast(msg, bad = false) {
 
 // ---------- 누르기 ----------
 const actions = {
+  // 책 찾기: 결과 목록만 그 자리에서 바꾼다 (화면 전체를 다시 그리면 적어 둔 값이 사라진다).
+  async find(el) {
+    const box = el.closest('.find')
+    const q = $('input', box).value.trim()
+    const list = $('.found', box)
+    if (!q) return
+    list.hidden = false
+    list.innerHTML = '<li class="soft">찾는 중…</li>'
+    try {
+      ui.found = (await call(`search?q=${encodeURIComponent(q)}`)).items
+      list.innerHTML = ui.found.length
+        ? ui.found
+            .map(
+              (b, i) => `<li><button type="button" data-act="found" data-i="${i}">
+                ${b.cover ? `<img src="${esc(b.cover)}" alt="" loading="lazy">` : '<span class="nocover"></span>'}
+                <span><b>${esc(b.title)}</b><small>${esc([b.author, b.publisher, b.year, b.pages && `${b.pages}쪽`].filter(Boolean).join(' · '))}</small></span></button>
+                ${b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener" aria-label="${esc(b.title)} 예스24에서 보기">예스24↗</a>` : ''}</li>`,
+            )
+            .join('') + '<li class="credit">도서 정보 제공: <a href="https://www.yes24.com/" target="_blank" rel="noopener">예스24</a></li>'
+        : '<li class="soft">찾은 책이 없어요. 아래에 직접 적어 주세요.</li>'
+    } catch (e) {
+      list.hidden = true
+      toast(e.message, true)
+    }
+  },
+  async found(el) {
+    const box = el.closest('.find')
+    const form = $('form', box.parentElement)
+    let b = ui.found[Number(el.dataset.i)]
+    // 쪽수는 책 한 권을 따로 조회해야 온다.
+    if (!b.pages && b.id) b = { ...b, pages: (await call(`lookup?id=${b.id}`).catch(() => null))?.item?.pages ?? null }
+    form.elements.title.value = b.title
+    form.elements.author.value = b.author
+    if (b.pages) form.elements.pages.value = b.pages
+    if (form.elements.genre && b.genre) form.elements.genre.value = b.genre
+    $('.found', box).hidden = true
+    toast(b.pages ? `『${b.title}』 ${b.pages}쪽으로 채웠어요. 내 책과 쪽수가 같은지 확인해 주세요` : '쪽수는 찾지 못했어요. 직접 적어 주세요')
+  },
+
   tab(el) {
     ui.tab = el.dataset.tab
     ui.open = null
@@ -801,8 +857,8 @@ const actions = {
 }
 
 function shelfSheet(b) {
-  openSheet(`<form data-form="shelf" class="form">
-    <h2>${b ? '책 정보 고치기' : '읽는 책 추가'}</h2>
+  openSheet(`<h2>${b ? '책 정보 고치기' : '읽는 책 추가'}</h2>${b ? '' : finder()}
+  <form data-form="shelf" class="form">
     ${b ? `<input type="hidden" name="id" value="${b.id}">` : ''}
     <label>책 제목<input name="title" required maxlength="100" value="${esc(b?.title)}"></label>
     <label>지은이<input name="author" maxlength="60" value="${esc(b?.author)}"></label>
@@ -879,8 +935,16 @@ document.addEventListener('input', (e) => {
   $('.live', box).textContent = `${pct(v, total)}%`
 })
 
+// 책 찾기 칸에서 엔터를 누르면 찾기.
+document.addEventListener('keydown', (e) => {
+  const box = e.key === 'Enter' && e.target.closest('.find')
+  if (!box) return
+  e.preventDefault()
+  $('[data-act=find]', box).click()
+})
+
 // 입력을 마치면 미뤄 둔 새 상태를 그린다. 바로 그리면 방금 누른 버튼이 사라지므로 조금 기다린다.
-document.addEventListener('focusout', () => setTimeout(() => stale && !sheet.open && !busy && render(), 400))
+document.addEventListener('focusout', () => setTimeout(() => stale && !busy && !typing() && render(), 400))
 
 // 친구들의 변화를 30초마다, 그리고 앱으로 돌아올 때 받아 온다.
 setInterval(refresh, 30000)

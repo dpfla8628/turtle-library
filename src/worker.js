@@ -2,6 +2,7 @@
 import { todayKST, unanimous, crownOf, nextPicker } from '../public/rules.js'
 import { buildDeck, drawCard } from './deck.js'
 import { hashPassword, verifyPassword, newToken, sha256 } from './auth.js'
+import { searchBooks, lookupBook } from './books.js'
 
 const COLORS = ['peach', 'mint', 'sky', 'lemon', 'lilac', 'rose']
 const GENRES = ['fiction', 'nonfiction', 'essay']
@@ -84,6 +85,10 @@ async function api(req, env, url) {
     return json({ ok: true }, 200, { 'set-cookie': cookie('', 0, secure) })
   }
 
+  // 책 찾기는 모임 상태와 상관없으니 여기서 바로 답한다.
+  if (req.method === 'GET' && (path === 'search' || path === 'lookup'))
+    return json(await findBooks(env.YES24_API_KEY, path, url.searchParams))
+
   await rollover(db, now, today)
 
   if (req.method === 'POST') {
@@ -94,7 +99,20 @@ async function api(req, env, url) {
   } else if (path !== 'state') throw new Oops(404, '없는 주소예요')
 
   // 모든 요청은 최신 전체 상태로 답한다. 화면은 받은 걸 그대로 다시 그린다.
-  return json(await state(db, me, today))
+  return json({ ...(await state(db, me, today)), search: Boolean(env.YES24_API_KEY) })
+}
+
+// ---- 책 찾기 ----
+async function findBooks(key, path, query) {
+  if (!key) throw new Oops(404, '책 찾기가 아직 켜져 있지 않아요')
+  try {
+    if (path === 'search') return { items: await searchBooks(key, text(query.get('q'), 50, '검색어')) }
+    return { item: await lookupBook(key, int(query.get('id'), 1, 1e12, '책 번호')) }
+  } catch (e) {
+    if (e instanceof Oops) throw e
+    console.error(e)
+    throw new Oops(502, '책 정보를 가져오지 못했어요. 아래에 직접 적어 주세요')
+  }
 }
 
 // ---- 로그인 ----

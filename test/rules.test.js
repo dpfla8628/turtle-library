@@ -113,3 +113,32 @@ test('drawCard: 덱에 없는 카드만 뽑고, 다 뽑으면 null', () => {
   for (let card; (card = drawCard('fiction', have)); have.add(card.body)) assert.ok(!have.has(card.body))
   assert.equal(drawCard('fiction', have), null)
 })
+
+// ---- 책 찾기 (예스24 응답 → 우리 형식) ----
+import { cleanAuthor, genreOf, toBook } from '../src/books.js'
+
+test('cleanAuthor: 역할 표기와 옮긴이를 떼어 낸다', () => {
+  assert.equal(cleanAuthor('양귀자'), '양귀자')
+  assert.equal(cleanAuthor('양귀자 저'), '양귀자')
+  assert.equal(cleanAuthor('유발 하라리 저/조현욱 역/이태수 감수'), '유발 하라리')
+  assert.equal(cleanAuthor('김가, 이나 공저'), '김가, 이나')
+  assert.equal(cleanAuthor('로버트 C. 마틴'), '로버트 C. 마틴')
+  assert.equal(cleanAuthor(undefined), '')
+})
+
+test('genreOf: 분류명으로 종류를 짐작하고, 모르면 null', () => {
+  assert.equal(genreOf('한국소설'), 'fiction')
+  assert.equal(genreOf('에세이'), 'essay')
+  assert.equal(genreOf('인문'), 'nonfiction')
+  assert.equal(genreOf('국내도서'), null)
+  assert.equal(genreOf(undefined), null)
+})
+
+test('toBook: 쪽수는 양수일 때만, 표지·링크는 예스24 주소만', () => {
+  const item = { itemId: 11681152, title: ' 클린 코드 ', author: '로버트 C. 마틴 저/박재호 역', publisher: '인사이트', publishDate: '2013-12-24',
+    cover: 'https://image.yes24.com/goods/11681152/XL', link: 'https://www.yes24.com/product/goods/11681152', goodsSortNm: 'IT 모바일', pages: 584 }
+  assert.deepEqual(toBook(item), { id: 11681152, title: '클린 코드', author: '로버트 C. 마틴', publisher: '인사이트', year: '2013',
+    cover: 'https://image.yes24.com/goods/11681152/XL', link: 'https://www.yes24.com/product/goods/11681152', genre: 'nonfiction', pages: 584 })
+  const odd = toBook({ itemId: 7, title: 'x', cover: 'https://evil.example/a.jpg', link: 'javascript:alert(1)', pages: 0 })
+  assert.deepEqual([odd.cover, odd.link, odd.pages, odd.year], ['', 'https://www.yes24.com/product/goods/7', null, ''])
+})
