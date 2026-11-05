@@ -1,0 +1,16 @@
+{
+  "name": "book-club",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node --test",
+    "db:local": "wrangler d1 execute book-club --local --file=schema.sql",
+    "db:remote": "wrangler d1 execute book-club --remote --file=schema.sql",
+    "users": "node scripts/users.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.157.0"
+  }
+}

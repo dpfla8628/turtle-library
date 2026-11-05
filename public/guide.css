@@ -1,0 +1,82 @@
+/* 사용 가이드 페이지. 색과 버튼·카드는 앱의 style.css 를 그대로 쓴다. */
+html { scroll-behavior: smooth; }
+.guide { max-width: 980px; margin: 0 auto; padding: 0 18px 64px; }
+.guide h2 { font-size: 28px; text-align: center; }
+.guide h3 { font-size: 21px; }
+.guide section { margin-top: 64px; scroll-margin-top: 20px; }
+.guide ul, .guide ol.order { padding-left: 22px; margin: 12px 0 0; display: grid; gap: 7px; }
+.guide ul { list-style: disc; }
+.guide li::marker { color: var(--accent); }
+.lede { text-align: center; color: var(--ink-soft); max-width: 34em; margin: 10px auto 0; }
+code { font: 14px ui-monospace, Consolas, monospace; background: var(--peach-soft); border-radius: 8px; padding: 1px 6px; white-space: nowrap; }
+
+/* ----- 머리 ----- */
+.hero { display: grid; justify-items: center; text-align: center; padding: calc(44px + env(safe-area-inset-top)) 0 0; }
+.hero-art { width: 150px; }
+.hero h1 { font-size: 46px; }
+a.btn { color: var(--ink); text-decoration: none; display: inline-grid; place-items: center; }
+.hero .btn { margin-top: 20px; padding: 10px 28px; }
+.toc { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 26px; }
+.toc a { font: 15px var(--title); color: var(--ink); text-decoration: none; background: #fff; border: 2px solid var(--line-strong); border-radius: 99px; padding: 6px 14px; }
+.toc a:hover { background: var(--peach-soft); border-color: var(--ink); }
+
+/* ----- 설명 + 폰 화면 한 줄 ----- */
+.steps { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 22px; }
+.step { display: grid; gap: 22px; align-items: center; background: var(--paper); border: 2px solid var(--line); border-radius: 28px; box-shadow: 0 5px 0 var(--line); padding: 24px 20px; margin-top: 24px; }
+.steps .step { margin-top: 0; }
+.step p { margin-top: 10px; }
+.no { display: inline-grid; place-items: center; width: 42px; height: 42px; margin-bottom: 10px; font: 22px var(--title); background: var(--peach); border: 2px solid var(--ink); border-radius: 50%; box-shadow: 0 3px 0 var(--ink); }
+.note-box { background: #fff6cf; border: 2px dashed var(--gold); border-radius: 16px; padding: 12px 14px; margin-top: 16px; }
+
+.phone { margin: 0 auto; width: min(272px, 76vw); }
+.phone img { display: block; width: 100%; height: auto; background: var(--bg); border: 3px solid var(--ink); border-radius: 30px; box-shadow: 0 6px 0 var(--ink); }
+.phone figcaption { text-align: center; font: 15px var(--title); color: var(--ink-soft); margin-top: 14px; }
+.phones { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; }
+.phones .phone { width: min(210px, 42vw); margin: 0; }
+.phones .phone img { border-radius: 24px; }
+/* 토론 카드 세 장: 좁은 화면에서는 옆으로 밀어서 본다 */
+.phones.wide { margin: 28px -18px 0; padding: 0 calc(50% - min(125px, 38vw)) 10px; gap: 20px; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.phones.wide::-webkit-scrollbar { display: none; }
+.phones.wide .phone { flex: none; width: min(250px, 76vw); scroll-snap-align: center; }
+
+/* ----- 진화 단계 ----- */
+.evo { list-style: none; padding: 20px 10px; margin: 26px 0 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; align-items: end; text-align: center; background: var(--paper); border: 2px solid var(--line); border-radius: 28px; box-shadow: 0 5px 0 var(--line); }
+.evo li { display: grid; justify-items: center; gap: 2px; }
+.evo .portrait { display: block; width: min(92px, 86%); aspect-ratio: 1; }
+.evo .portrait svg { height: 100%; }
+/* 좁은 화면에서는 "아기 거북이"가 두 줄이 되므로, 이름 칸 높이를 맞춰 아래 % 표시가 한 줄에 서게 한다 */
+.evo b { font: 15px/1.25 var(--title); margin-top: 6px; min-height: 2.5em; display: grid; align-items: center; }
+.evo small { font: 13px var(--title); color: var(--ink); background: var(--c); border-radius: 99px; padding: 0 9px; }
+.evo li + li { position: relative; }
+.evo li + li::before { content: '›'; position: absolute; left: -6px; top: 34%; font: 22px var(--title); color: var(--line-strong); }
+
+/* ----- 작은 카드 묶음 ----- */
+.cards { display: grid; gap: 16px; margin-top: 28px; }
+.cards .card { margin: 0; }
+.order li b { font-family: var(--title); font-weight: 400; }
+
+/* ----- 자주 묻는 것 ----- */
+.faq { display: grid; gap: 10px; margin-top: 24px; }
+.faq details { background: var(--paper); border: 2px solid var(--line); border-radius: 18px; padding: 14px 18px; }
+.faq summary { font-size: 17px; }
+.faq p { color: var(--ink-soft); margin-top: 10px; }
+
+.foot { display: grid; justify-items: center; gap: 6px; text-align: center; margin-top: 72px; }
+.foot .portrait { width: 96px; }
+.foot p { font: 18px var(--title); }
+.foot .btn { margin-top: 10px; }
+
+@media (min-width: 760px) {
+  .guide h2 { font-size: 34px; }
+  .hero h1 { font-size: 60px; }
+  .lede { font-size: 18px; }
+  .step { grid-template-columns: 1fr 272px; gap: 44px; padding: 36px 44px; }
+  .steps .step:nth-child(even), .step.flip { grid-template-columns: 272px 1fr; }
+  .steps .step:nth-child(even) .phone, .step.flip .phone { order: -1; }
+  .step.plain:has(.phones) { grid-template-columns: 1fr auto; }
+  .cards { grid-template-columns: repeat(3, 1fr); }
+  .cards.two { grid-template-columns: repeat(2, 1fr); max-width: 720px; margin-inline: auto; }
+  .evo { padding: 28px 24px; }
+  .evo b { font-size: 18px; min-height: 0; }
+  .phones.wide { margin-inline: 0; padding: 0; justify-content: center; overflow: visible; }
+}

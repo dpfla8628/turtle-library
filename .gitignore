@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars
+# scripts/users.mjs 가 만드는 계정 시드 (비밀번호 해시 포함)
+users.local.sql
+# 운영 계정 (scripts/users.mjs 가 만든 비밀번호 기록)
+accounts.local.txt
+# 조사 원자료 (출처 발췌가 섞여 있어 저장소에는 올리지 않는다. 정리본은 reports/)
+research_notes/

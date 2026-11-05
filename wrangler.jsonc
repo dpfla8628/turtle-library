@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "turtle-library",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+  // public/ 은 정적 파일로 바로 서빙되고, 나머지(/api/*)만 Worker 로 들어온다.
+  "assets": { "directory": "./public" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "book-club", "database_id": "05a07f01-f941-4d6e-a8de-6ce704e146bd" }
+  ]
+}
