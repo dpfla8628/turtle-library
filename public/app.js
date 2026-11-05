@@ -663,8 +663,8 @@ function profileSheet() {
   const u = user(S.me.id)
   openSheet(`<form data-form="profile" class="form">
     <h2>내 정보</h2>
-    <label>이름 <small>(8자까지)</small><input name="name" required maxlength="8" value="${esc(u.name)}"></label>
-    <fieldset class="swatches"><legend>내 색 <small>🎨 를 누르면 색상표에서 직접 골라요. 진한 색은 글자가 보이게 조금 밝게 칠해져요</small></legend>${Object.entries(COLORS)
+    <label>이름<input name="name" required maxlength="8" value="${esc(u.name)}"></label>
+    <fieldset class="swatches"><legend>내 색 <small>🎨 는 직접 고르기</small></legend>${Object.entries(COLORS)
       .map(([k, v]) => `<label class="c-${k}"><input type="radio" name="color" value="${k}" ${k === u.color ? 'checked' : ''}><span aria-label="${v}"></span></label>`)
       .join('')}
       <label class="own${isHex(u.color) ? ' has' : ''}" ${isHex(u.color) ? `style="--c:${tone(u.color).c}"` : ''}>
@@ -674,8 +674,7 @@ function profileSheet() {
       </label></fieldset>
     <button class="btn wide">저장</button>
   </form>
-  ${pushSection()}
-  ${motionSection()}
+  <div class="sets more">${pushRows()}${setRow('움직임 효과', '', toggle('motion', motion(), '움직임 효과'))}</div>
   <details class="more"><summary>비밀번호 바꾸기</summary>
     <form data-form="password" class="form">
       <label>지금 비밀번호<input name="old" type="password" required autocomplete="current-password"></label>
@@ -703,26 +702,21 @@ const pushState = () =>
 
 const myPush = () => S.push?.subs?.find((sub) => sub.endpoint === mySub?.endpoint)
 
-const pushSection = () =>
-  `<section class="more push"><h3>알림</h3>${
-    {
-      none: `<p class="soft">이 브라우저에서는 알림을 켤 수 없어요. 아이폰은 Safari 의 공유 버튼에서 "홈 화면에 추가"로 설치한 다음, 홈 화면의 거북이 도서관을 열어서 켜 주세요.</p>`,
-      blocked: `<p class="soft">이 사이트의 알림이 브라우저에서 차단돼 있어요. 브라우저의 사이트 설정에서 알림을 허용한 뒤 다시 열어 주세요.</p>`,
-      off: `<p class="soft">친구가 읽은 쪽수를 기록했을 때, 책이나 토론일이 정해졌을 때, 토론 전날과 당일에 알려 드려요.</p>
-        <button type="button" class="btn wide" data-act="push-on">🔔 이 기기에서 알림 켜기</button>`,
-      on: `<p class="soft">이 기기에서 알림을 받고 있어요 🔔</p>
-        <button type="button" class="btn ghost wide" data-act="push-quiet" role="switch" aria-checked="${!myPush()?.quiet}">친구 독서 소식 알림: ${myPush()?.quiet ? '꺼짐' : '켜짐'}</button>
-        <p class="soft">책과 토론 일정 알림은 계속 와요.</p>
-        <div class="row"><button type="button" class="btn ghost grow" data-act="push-test">시험 알림 보내기</button><button type="button" class="btn ghost grow" data-act="push-off">알림 끄기</button></div>`,
-    }[pushState()]
-  }</section>`
+// 내 정보의 설정 한 줄: 왼쪽에 이름과 작은 설명, 오른쪽에 스위치(없을 수도 있다).
+const setRow = (name, note, control = '') => `<div class="set"><div><b>${name}</b>${note ? `<small>${note}</small>` : ''}</div>${control}</div>`
+const toggle = (act, on, label) => `<button type="button" class="switch" role="switch" aria-checked="${Boolean(on)}" aria-label="${label}" data-act="${act}"></button>`
 
-// 움직임 효과. 기기의 "동작 줄이기" 설정과 상관없이 기본으로 켜져 있고, 불편하면 이 기기에서만 끈다.
-const motionSection = () =>
-  `<section class="more push"><h3>움직임 효과</h3>
-    <p class="soft">캐릭터가 걸어 다니고 화면이 부드럽게 바뀌어요. 어지럽거나 불편하면 꺼 주세요.</p>
-    <button type="button" class="btn ghost wide" data-act="motion" role="switch" aria-checked="${motion()}">움직임 효과: ${motion() ? '켜짐' : '꺼짐'}</button>
-  </section>`
+// 알림 줄. 켜져 있으면 "친구 독서 소식"만 따로 끄는 줄이 하나 더 붙는다(책과 토론 일정 알림은 계속 온다).
+// 움직임 효과는 기기의 "동작 줄이기" 설정과 상관없이 기본으로 켜져 있고, 불편하면 그 아래 줄에서 이 기기만 끈다.
+const pushRows = () =>
+  ({
+    none: () => setRow('알림', '이 브라우저에서는 켤 수 없어요. 아이폰은 홈 화면에 추가한 앱에서 켜요.'),
+    blocked: () => setRow('알림', '브라우저 설정에서 이 사이트의 알림이 막혀 있어요.'),
+    off: () => setRow('알림', '친구 소식, 토론일, 토론 전날을 알려 드려요', toggle('push-on', false, '이 기기에서 알림 받기')),
+    on: () =>
+      setRow('알림', '<button type="button" class="link" data-act="push-test">시험 알림 보내기</button>', toggle('push-off', true, '이 기기에서 알림 받기')) +
+      setRow('친구 독서 소식 알림', '', toggle('push-quiet', !myPush()?.quiet, '친구 독서 소식 알림')),
+  })[pushState()]()
 
 const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0))
 const hintSeen = () => {
