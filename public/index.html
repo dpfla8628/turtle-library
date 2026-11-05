@@ -6,8 +6,12 @@
     <meta name="theme-color" content="#fff6e9" />
     <title>거북이 도서관</title>
     <link rel="manifest" href="manifest.webmanifest" />
+    <!-- 홈 화면 아이콘은 PNG 로 준다(매니페스트도 같다). 크기 정보가 없는 SVG 를 고른 폰에서는 기본 아이콘이 깔렸다. -->
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="icon-512.png" />
+    <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="거북이 도서관" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" rel="stylesheet" />
