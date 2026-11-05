@@ -1,8 +1,31 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  pct, stageOf, phaseOf, todayKST, unanimous, crownOf, nextPicker, fame, withHero,
+  pct, stageOf, phaseOf, todayKST, unanimous, crownOf, nextPicker, fame, withHero, isHex, tone,
 } from '../public/rules.js'
+
+test('tone: 직접 고른 색은 그대로 쓰되, 글자가 안 읽힐 만큼 어두우면 밝힌다', () => {
+  // 갈색 글자(#5a463c)와의 명암비
+  const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0)
+  const contrast = (hex) => (lum(hex) + 0.05) / (lum('#5a463c') + 0.05)
+
+  assert.deepEqual(tone('#ffc4a3'), { c: '#ffc4a3', cd: '#c7997f' }) // 밝은 색은 고른 그대로
+  for (const hex of ['#a8e0c4', '#aad6f2', '#fbe38a', '#cdb9f0', '#f7b3c6', '#ffffff']) assert.equal(tone(hex).c, hex)
+  for (const hex of ['#000000', '#1b2a6b', '#ff0000', '#0000ff', '#6a3d9a', '#2e7d32', '#5a463c']) {
+    const { c, cd } = tone(hex)
+    assert.notEqual(c, hex, `${hex} 는 밝혀야 한다`)
+    assert.ok(contrast(c) >= 4.5, `${hex} → ${c} 의 명암비 ${contrast(c).toFixed(2)}`)
+    assert.ok(lum(cd) < lum(c), '진한 쪽은 바탕보다 어둡다')
+    assert.match(c + cd, /^#[0-9a-f]{6}#[0-9a-f]{6}$/)
+  }
+  // 색감은 남는다: 파랑을 밝혀도 파란 기가 가장 세다
+  const blue = tone('#0000ff').c
+  assert.ok(parseInt(blue.slice(5), 16) > parseInt(blue.slice(1, 3), 16))
+
+  assert.ok(isHex('#a1b2c3'))
+  for (const bad of ['#A1B2C3', '#abc', 'a1b2c3', '#a1b2c3;', 'peach', '', 'custom', '#a1b2cg']) assert.ok(!isHex(bad), bad)
+})
 
 test('pct: 다 읽어야만 100', () => {
   assert.equal(pct(0, 300), 0)

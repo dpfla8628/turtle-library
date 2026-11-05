@@ -66,3 +66,16 @@ export function withHero(body, hero) {
   const closed = last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 !== 0
   return body.replace(/\{주인공(?::([가-힣]+))?\}/g, (_, josa) => name + (josa ? (closed ? josa : JOSA[josa]) : ''))
 }
+
+// 친구가 직접 고른 색(#rrggbb)을 화면에 칠할 두 값으로 바꾼다: c 는 바탕(캐릭터 몸, 이름표), cd 는 진한 쪽(테두리, 무늬).
+// 바탕 위에 갈색 글자와 캐릭터 얼굴이 올라간다. 너무 어두운 색은 글자가 읽힐 때까지(명암비 4.5) 흰색을 섞어 밝힌다.
+export const isHex = (color) => /^#[0-9a-f]{6}$/.test(color)
+const INK = [90, 70, 60] // style.css 의 --ink
+const WEIGHT = [0.2126, 0.7152, 0.0722]
+const light = (rgb) => rgb.reduce((sum, v, i) => sum + WEIGHT[i] * (v / 255 <= 0.04045 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4), 0)
+const hexOf = (rgb) => '#' + rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')
+export function tone(hex) {
+  let rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+  while ((light(rgb) + 0.05) / (light(INK) + 0.05) < 4.5) rgb = rgb.map((v) => v + (255 - v) * 0.1)
+  return { c: hexOf(rgb), cd: hexOf(rgb.map((v) => v * 0.78)) }
+}

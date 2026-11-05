@@ -1,5 +1,5 @@
 // 독서토론 앱 API. 정적 파일(public/)은 Cloudflare 가 직접 내보내고, 여기는 /api/* 만 맡는다.
-import { todayKST, unanimous, crownOf, nextPicker } from '../public/rules.js'
+import { todayKST, unanimous, crownOf, nextPicker, isHex } from '../public/rules.js'
 import { buildDeck, drawCard } from './deck.js'
 import { askBook, BOOK_CAT, INTRO_CAT } from './ask.js'
 import { hashPassword, verifyPassword, newToken, sha256 } from './auth.js'
@@ -620,8 +620,10 @@ const POST = {
   },
 
   async profile({ db, me, body }) {
-    if (!COLORS.includes(body.color)) throw new Oops(400, '고를 수 없는 색이에요')
-    await db.prepare('UPDATE users SET name = ?, color = ? WHERE id = ?').bind(text(body.name, 8, '이름'), body.color, me.id).run()
+    // 색은 준비된 여섯 가지 가운데 하나이거나, 색상표에서 직접 고른 값(#rrggbb).
+    const color = String(body.color ?? '').toLowerCase()
+    if (!COLORS.includes(color) && !isHex(color)) throw new Oops(400, '고를 수 없는 색이에요')
+    await db.prepare('UPDATE users SET name = ?, color = ? WHERE id = ?').bind(text(body.name, 8, '이름'), color, me.id).run()
   },
 
   async password({ db, me, body }) {

@@ -1,5 +1,5 @@
 // 거북이 도서관 화면. 서버가 주는 전체 상태(S)를 받아 그대로 다시 그린다.
-import { STAGES, pct, stageOf, phaseOf, unanimous, crownOf, fame, withHero } from './rules.js'
+import { STAGES, pct, stageOf, phaseOf, unanimous, crownOf, fame, withHero, isHex, tone } from './rules.js'
 import { critterSVG, mountScene, updateScene, celebrate, motion, setMotion } from './critters.js'
 
 const $ = (sel, root = document) => root.querySelector(sel)
@@ -152,6 +152,16 @@ const cover = (title, cls = '') => {
 const stars = (n) => `<span class="stars" aria-label="별점 ${n}점">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span>`
 
 // ---------- 그리기 ----------
+// 친구의 색은 화면 곳곳에서 c-<색> 클래스로 칠한다. 준비된 여섯 가지는 style.css 에 있고,
+// 색상표에서 직접 고른 색(#rrggbb)은 여기서 그 색 이름의 클래스를 만들어 붙인다.
+function paintTones() {
+  const css = [...new Set(S.users.map((u) => u.color).filter(isHex))]
+    .map((hex) => `.${CSS.escape(`c-${hex}`)}{--c:${tone(hex).c};--cd:${tone(hex).cd}}`)
+    .join('')
+  const el = $('#tones') ?? document.head.appendChild(Object.assign(document.createElement('style'), { id: 'tones' }))
+  if (el.textContent !== css) el.textContent = css
+}
+
 function render() {
   stale = false
   if (!S) {
@@ -168,6 +178,7 @@ function render() {
     mountScene($('#scene'))
     mounted = true
   }
+  paintTones()
   const c = cur()
   const ms = members()
   const me = ms.find((m) => m.me)
@@ -653,9 +664,14 @@ function profileSheet() {
   openSheet(`<form data-form="profile" class="form">
     <h2>내 정보</h2>
     <label>이름 <small>(8자까지)</small><input name="name" required maxlength="8" value="${esc(u.name)}"></label>
-    <fieldset class="swatches"><legend>내 색</legend>${Object.entries(COLORS)
+    <fieldset class="swatches"><legend>내 색 <small>🎨 를 누르면 색상표에서 직접 골라요. 진한 색은 글자가 보이게 조금 밝게 칠해져요</small></legend>${Object.entries(COLORS)
       .map(([k, v]) => `<label class="c-${k}"><input type="radio" name="color" value="${k}" ${k === u.color ? 'checked' : ''}><span aria-label="${v}"></span></label>`)
-      .join('')}</fieldset>
+      .join('')}
+      <label class="own${isHex(u.color) ? ' has' : ''}" ${isHex(u.color) ? `style="--c:${tone(u.color).c}"` : ''}>
+        <input type="radio" name="color" value="custom" ${isHex(u.color) ? 'checked' : ''} tabindex="-1">
+        <span aria-hidden="true">🎨</span>
+        <input type="color" name="hex" value="${isHex(u.color) ? u.color : '#ffc4a3'}" aria-label="색 직접 고르기">
+      </label></fieldset>
     <button class="btn wide">저장</button>
   </form>
   ${pushSection()}
@@ -1025,7 +1041,8 @@ const forms = {
     if (await act('shelf', d, d.id ? '고쳤어요' : '서재에 꽂았어요 📚')) sheet.close()
   },
   async profile(d) {
-    if (await act('profile', d, '저장했어요')) sheet.close()
+    // 🎨 로 고른 색이면 색상표의 값(#rrggbb)을 보낸다.
+    if (await act('profile', { name: d.name, color: d.color === 'custom' ? d.hex : d.color }, '저장했어요')) sheet.close()
   },
   async password(d, form) {
     if (await act('password', d, '비밀번호를 바꿨어요')) form.reset()
@@ -1053,6 +1070,16 @@ document.addEventListener('submit', (e) => {
   const form = e.target
   once(() => forms[form.dataset.form]?.(Object.fromEntries(new FormData(form)), form))
 })
+
+// 내 정보의 🎨: 누르면 기기의 색상표가 열린다. 누르거나 색을 바꾸면 "직접 고른 색"을 고른 것으로 표시하고 바로 보여 준다.
+for (const type of ['click', 'input'])
+  document.addEventListener(type, (e) => {
+    if (e.target.name !== 'hex') return
+    const label = e.target.closest('label')
+    e.target.form.elements.color.value = 'custom'
+    label.classList.add('has')
+    label.style.setProperty('--c', tone(e.target.value).c)
+  })
 
 // 쪽수 슬라이더와 숫자 칸을 서로 맞춘다.
 document.addEventListener('input', (e) => {
