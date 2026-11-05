@@ -54,3 +54,31 @@ export async function lookupBook(key, id) {
   const [it] = await call('itemDetail', key, { searchType: 'ItemId', query: String(id) })
   return it ? toBook(it) : null
 }
+
+// ---- 토론 질문을 만들 때 쓸 책 소개글 ----
+const plain = (html) => String(html ?? '').replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim()
+const squash = (s) => String(s ?? '').replace(/\s+/g, '')
+const introOf = (it) => [it?.contentDetail?.bookIntroduction, it?.contentDetail?.bookSummary].map(plain).filter(Boolean).join(' ').slice(0, 3000)
+
+// 제목과 지은이가 맞는 책 가운데 소개글이 있는 첫 번째 것의 "책 소개 + 줄거리". 못 찾으면 빈 문자열.
+// 같은 책이 판형별로 여러 개 나오고 소개가 빈 판도 있어서, 제목이 꼭 맞는 것부터 세 권까지 본다.
+// 지은이를 적어 뒀는데 지은이가 다르면 제목이 같아도 쓰지 않는다(엉뚱한 책으로 질문을 만드느니 안 만드는 편이 낫다).
+export async function bookIntro(key, title, author) {
+  const items = await call('itemList', key, { query: title, category: 'BOOK', pageSize: '10' })
+  const [want, by] = [squash(title), squash(author)]
+  const titled = (it) => {
+    const have = squash(it.title)
+    return have === want ? 2 : have && (have.includes(want) || want.includes(have)) ? 1 : 0
+  }
+  const authored = (it) => {
+    const who = squash(cleanAuthor(it.author))
+    return !by || (who && (who.includes(by) || by.includes(who)))
+  }
+  const picks = items.filter((it) => titled(it) && authored(it)).sort((a, b) => titled(b) - titled(a)).slice(0, 3)
+  for (const it of picks) {
+    // 목록 응답에 소개가 실려 오지 않으면 상세를 한 번 더 묻는다.
+    const full = it.contentDetail === undefined ? (await call('itemDetail', key, { searchType: 'ItemId', query: String(it.itemId) }))[0] : it
+    if (introOf(full).length >= 40) return introOf(full)
+  }
+  return ''
+}

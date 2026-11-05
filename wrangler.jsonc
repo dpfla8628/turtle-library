@@ -7,6 +7,8 @@
   "assets": { "directory": "./public" },
   // 매일 00:00 UTC = 한국 시간 아침 9시: 책 넘기기 확인 + 토론 전날·당일 알림 (src/worker.js 의 scheduled)
   "triggers": { "crons": ["0 0 * * *"] },
+  // 책 소개로 그 책만의 토론 질문을 만드는 무료 AI (src/ask.js). 없어도 앱은 돌아가고 그 기능만 꺼진다.
+  "ai": { "binding": "AI" },
   "d1_databases": [
     { "binding": "DB", "database_name": "book-club", "database_id": "05a07f01-f941-4d6e-a8de-6ce704e146bd" }
   ]

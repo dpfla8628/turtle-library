@@ -172,7 +172,7 @@ legend { font: 15px var(--title); padding: 0; margin-bottom: 6px; }
 /* ---------- 도서관 장면 ---------- */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 2px solid var(--c); border-radius: 99px; padding: 3px 12px 3px 8px; font: 14px var(--title); }
-.chip i, .who i, .note header i, .mini i { width: 10px; height: 10px; border-radius: 50%; background: var(--cd); flex: none; }
+.chip i, .who i, .note header i { width: 10px; height: 10px; border-radius: 50%; background: var(--cd); flex: none; }
 .chip b { font-weight: 400; color: var(--ink-soft); }
 button.chip { min-height: 40px; }
 button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink); }
@@ -311,24 +311,22 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
   box-shadow: 0 6px 0 var(--ink);
   padding: 18px 20px 12px;
 }
-.cue.sec0 { background: #fff6cf; }
-.cue.sec2 { background: #dff3e8; }
 .cue.ours { background: color-mix(in srgb, var(--c) 38%, #fff); }
 .cue header { display: flex; justify-content: space-between; align-items: center; font: 14px var(--title); color: var(--ink-soft); }
 .cat { background: var(--ink); color: #fff; border-radius: 99px; padding: 2px 13px; }
 .mid { margin: auto 0; padding: 12px 0; }
 .q { font: 22px/1.5 var(--title); margin: 0; }
 .sub { color: var(--ink-soft); margin-top: 12px; padding-top: 12px; border-top: 2px dashed rgba(90, 70, 60, 0.18); }
+.sub p { margin: 0; }
+.sub p + p { margin-top: 8px; }
 .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .opts b { font: 16px var(--title); background: #fff; border: 2px solid var(--ink); border-radius: 99px; padding: 2px 13px; }
 .sub .opts b { color: var(--ink); }
-.follow { font-size: 14px; color: var(--ink-soft); background: rgba(255, 255, 255, 0.7); border-radius: 14px; padding: 8px 12px; margin: 0 0 10px; }
-.follow b { display: block; font: 12px var(--title); color: var(--accent); }
 .cue footer { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--ink-soft); }
-.cue .note-list, .mini { margin-top: 14px; }
-.mini { list-style: none; padding: 0; display: grid; gap: 6px; font-size: 15px; }
-.mini li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.75); border-radius: 12px; padding: 7px 10px; }
-.mini b { font: 15px var(--title); }
+.hero { margin: -4px 0 10px; font-size: 14px; }
+/* 책을 고른 이유: 책 카드와 토론 첫 카드에 작게 */
+.why { font-size: 14px; color: var(--ink-soft); margin: 6px 0 0; }
+.why span { white-space: nowrap; }
 .deck-nav { display: flex; justify-content: space-between; align-items: center; font: 17px var(--title); }
 
 /* ---------- 서재 ---------- */

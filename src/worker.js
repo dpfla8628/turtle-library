@@ -1,8 +1,9 @@
 // 독서토론 앱 API. 정적 파일(public/)은 Cloudflare 가 직접 내보내고, 여기는 /api/* 만 맡는다.
 import { todayKST, unanimous, crownOf, nextPicker } from '../public/rules.js'
 import { buildDeck, drawCard } from './deck.js'
+import { askBook, BOOK_CAT, INTRO_CAT } from './ask.js'
 import { hashPassword, verifyPassword, newToken, sha256 } from './auth.js'
-import { searchBooks, lookupBook } from './books.js'
+import { searchBooks, lookupBook, bookIntro } from './books.js'
 import { newVapidKeys, sendPush, isPushEndpoint } from './push.js'
 import { progressNews, bookNews, datesNews, rescheduleNews, reopenNews, questionNews, rolloverNews, reminderNews, nudgeNews } from './news.js'
 
@@ -121,14 +122,15 @@ async function api(req, env, url, ctx) {
     const handler = Object.hasOwn(POST, path) && POST[path]
     if (!handler) throw new Oops(404, '없는 주소예요')
     const cur = await db.prepare('SELECT * FROM cycles WHERE closed = 0').first()
-    news.push(await handler({ db, me, body, now, today, cur, origin: url.origin }))
+    news.push(await handler({ db, me, body, now, today, cur, origin: url.origin, env }))
   } else if (path !== 'state') throw new Oops(404, '없는 주소예요')
 
   // 알림은 응답을 기다리게 하지 않고 뒤에서 보낸다.
   ctx.waitUntil(notify(db, me, news))
 
   // 모든 요청은 최신 전체 상태로 답한다. 화면은 받은 걸 그대로 다시 그린다.
-  return json({ ...(await state(db, me, today)), search: Boolean(env.YES24_API_KEY) })
+  // search: 책 찾기를 쓸 수 있는지. ask: 책 소개로 그 책만의 질문을 만들 수 있는지.
+  return json({ ...(await state(db, me, today)), search: Boolean(env.YES24_API_KEY), ask: Boolean(env.YES24_API_KEY && env.AI) })
 }
 
 // ---- 알림 ----
@@ -338,8 +340,8 @@ const POST = {
     const genre = GENRES.includes(body.genre) ? body.genre : 'fiction'
     const stmts = [
       db
-        .prepare('UPDATE cycles SET title = ?, author = ?, pages = ?, genre = ? WHERE id = ?')
-        .bind(title, optText(body.author, 60), pages, genre, cur.id),
+        .prepare('UPDATE cycles SET title = ?, author = ?, pages = ?, genre = ?, reason = ? WHERE id = ?')
+        .bind(title, optText(body.author, 60), pages, genre, optText(body.reason, 200), cur.id),
       // 쪽수를 고쳤다면 이미 기록된 진행도를 새 쪽수에 맞춘다.
       db
         .prepare(
@@ -462,6 +464,13 @@ const POST = {
     return questionNews({ name: me.name, userId: me.id, book: cur, text: asked })
   },
 
+  // 소설의 주인공 이름. 적어 두면 카드가 "내가 ○○라면"처럼 그 이름으로 묻는다. 비우면 다시 '주인공'.
+  async hero({ db, body, cur }) {
+    needBook(cur)
+    const name = optText(String(body.name ?? '').replace(/[{}\s]+/g, ' '), 20)
+    await db.prepare('UPDATE cycles SET hero = ? WHERE id = ?').bind(name, cur.id).run()
+  },
+
   // 기본 카드는 책에 안 맞으면 누구나 뺄 수 있고, 친구가 쓴 카드는 쓴 사람만 지운다.
   async 'question/delete'({ db, me, body, cur }) {
     await db
@@ -479,6 +488,46 @@ const POST = {
       .prepare('INSERT INTO questions (cycle_id, sec, cat, body) VALUES (?, 1, ?, ?)')
       .bind(cur.id, card.cat, card.body)
       .run()
+  },
+
+  // 예스24 책 소개를 읽고 덱 맨 앞에 놓을 카드를 만든다(무료 AI, 10초쯤):
+  // 줄거리를 짧게 되짚는 "이 책은" 한 장 + 이 책에만 맞는 질문 다섯 장쯤.
+  async 'question/book'({ db, cur, env }) {
+    needBook(cur)
+    if (!env.YES24_API_KEY || !env.AI) throw new Oops(404, '책에 맞춘 질문은 아직 켜져 있지 않아요')
+    const { results: front } = await db.prepare('SELECT cat FROM questions WHERE cycle_id = ? AND sec = 0').bind(cur.id).all()
+    if (front.some((q) => q.cat === BOOK_CAT)) throw new Oops(409, '이 책에 맞는 질문은 이미 받았어요')
+    let made
+    try {
+      const intro = await bookIntro(env.YES24_API_KEY, cur.title, cur.author)
+      if (!intro) throw new Oops(404, '이 책의 소개글을 찾지 못했어요. 질문을 직접 추가해 보세요')
+      made = await askBook(env.AI, { ...cur, intro })
+    } catch (e) {
+      if (e instanceof Oops) throw e
+      console.error(e)
+      made = { cards: [] }
+    }
+    if (!made.cards.length) throw new Oops(502, '질문을 만들지 못했어요. 잠시 뒤에 다시 해 보세요')
+    // 줄거리 카드는 한 장만 둔다(질문만 빼고 다시 받는 경우). 제목의 [ ] { } 는 카드 문법과 겹쳐서 뗀다.
+    const opener = made.summary &&
+      !front.some((q) => q.cat === INTRO_CAT) && {
+        cat: INTRO_CAT,
+        body: `『${cur.title.replace(/[[\]{}]/g, ' ').trim()}』, 이런 이야기였죠.\n${made.summary}\n자, 그럼 이야기를 시작해 볼까요?`,
+      }
+    const rows = [opener, ...made.cards.map((body) => ({ cat: BOOK_CAT, body }))].filter(Boolean)
+    await db.batch([
+      // 만드는 사이에 다른 친구가 먼저 받았거나 책이 바뀌었으면 넣지 않는다.
+      db
+        .prepare(
+          `INSERT INTO questions (cycle_id, sec, cat, body)
+           SELECT ?1, 0, json_extract(value, '$.cat'), json_extract(value, '$.body') FROM json_each(?3)
+           WHERE NOT EXISTS (SELECT 1 FROM questions WHERE cycle_id = ?1 AND cat = ?2)
+             AND EXISTS (SELECT 1 FROM cycles WHERE id = ?1 AND closed = 0 AND title = ?4)`,
+        )
+        .bind(cur.id, BOOK_CAT, JSON.stringify(rows), cur.title),
+      // 소설이고 주인공 이름을 아직 안 적었으면, 책 소개에서 찾은 이름을 넣어 둔다(토론장에서 바꿀 수 있다).
+      db.prepare("UPDATE cycles SET hero = ?1 WHERE id = ?2 AND hero IS NULL AND genre = 'fiction' AND title = ?3").bind(made.hero, cur.id, cur.title),
+    ])
   },
 
   // 한줄평 · 메모 · 구절을 쓰거나(id 없음) 고친다(id 있음).

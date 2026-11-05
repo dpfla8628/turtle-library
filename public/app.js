@@ -1,5 +1,5 @@
 // 거북이 도서관 화면. 서버가 주는 전체 상태(S)를 받아 그대로 다시 그린다.
-import { STAGES, pct, stageOf, phaseOf, unanimous, crownOf, fame } from './rules.js'
+import { STAGES, pct, stageOf, phaseOf, unanimous, crownOf, fame, withHero } from './rules.js'
 import { critterSVG, mountScene, updateScene, celebrate } from './critters.js'
 
 const $ = (sel, root = document) => root.querySelector(sel)
@@ -40,6 +40,7 @@ const ui = {
   dates: null, // 고르는 중인 날짜 Set
   drafts: {}, // 저장 전 쪽수 { 'cycle1': 120 }
   card: 0, // 보고 있는 토론 카드
+  asking: false, // 이 책에 맞는 질문을 만드는 중
   filter: 'all', // 기록 필터
   shelfUser: null, // 서재 주인
   open: null, // 서재에서 연 책 { key, user }
@@ -80,6 +81,24 @@ const typing = () =>
   sheet.open ||
   $('#view :is(input, textarea, select):focus') ||
   [...document.querySelectorAll('#view form :is(input:not([type=radio]), textarea)')].some((el) => el.value)
+
+// 책 소개를 읽고 이 책에만 맞는 질문 카드를 받아 온다(10초쯤 걸린다).
+// quiet: 책을 정한 직후 알아서 받을 때. 못 받아도 조용히 넘어가고, 토론장의 버튼으로 다시 받을 수 있다.
+async function askBook(quiet) {
+  if (ui.asking) return
+  const soft = () => (typing() ? (stale = true) : render())
+  ui.asking = true
+  soft()
+  try {
+    setState(await call('question/book', {}), true)
+    ui.card = 0
+    toast('이 책에 맞는 질문 카드가 도착했어요 ✨')
+  } catch (e) {
+    if (!quiet) toast(e.message, true)
+  }
+  ui.asking = false
+  soft()
+}
 
 // 변경 요청 → 새 상태 반영. 실패하면 이유를 알려 주고 false.
 async function act(path, body, done) {
@@ -233,12 +252,16 @@ function homeView() {
       <p class="eyebrow">${nth} · ${esc(picker.name)}님의 선택</p>
       <h2>${esc(c.title)}</h2>
       <p class="soft">${[c.author, `${c.pages}쪽`, GENRE[c.genre]].filter(Boolean).map(esc).join(' · ')}</p>
+      ${why(c)}
       ${mine ? `<button class="link" data-act="edit-book">책 정보 고치기</button>` : ''}
     </div>
   </section>`
   h += phase === 'scheduling' ? calendarCard(c) : ddayCard(c, phase)
   return h + progressCard(c)
 }
+
+// 책을 고른 친구가 적어 둔 이유. 안 적었으면 아무것도 안 보인다.
+const why = (c) => (c?.reason ? `<p class="why">“${esc(c.reason)}” <span>— ${esc(user(c.picker_id).name)}</span></p>` : '')
 
 // 책 찾기 칸. 서버에 예스24 Open API 키가 설정돼 있을 때만 보인다. 고르면 바로 아래 폼에 제목·지은이·쪽수가 채워진다.
 const finder = () =>
@@ -262,6 +285,8 @@ function bookForm(c) {
         .map(([k, v]) => `<label><input type="radio" name="genre" value="${k}" ${k === genre ? 'checked' : ''}><span>${v}</span></label>`)
         .join('')}
     </fieldset>
+    <label>이 책을 고른 이유 <small>안 적어도 돼요. 친구들에게 작게 보여요</small>
+      <textarea name="reason" rows="2" maxlength="200" placeholder="예: 스무 살에 읽고 오래 남아서 같이 읽고 싶었어요">${esc(c?.reason)}</textarea></label>
     <button class="btn wide">${c ? '고친 내용 저장' : '이 책으로 정하기'}</button>
   </form>`
 }
@@ -415,50 +440,27 @@ function notesView() {
 }
 
 // ----- 토론장 -----
-// 본 질문 카드 아래에 돌아가며 붙는 한 줄. "좋았어"에서 멈추지 않고 책의 대목으로 돌아가게 한다.
-const FOLLOW = [
-  '그 생각이 시작된 쪽을 펴서 한 문단만 읽어 줄래요?',
-  '좋았다면(별로였다면) 무엇이 그랬나요? 문장, 속도, 인물이나 주장, 결말 가운데서 골라 봐요.',
-  '방금 쓴 그 표현을 다른 말로 풀면 무슨 뜻인가요?',
-  '같은 대목을 다르게 읽은 사람이 있나요?',
-  '방금 들은 말에서 동의하는 부분과 동의하기 어려운 부분은 각각 어디인가요?',
-  '그 점이 이 책 전체에서 왜 중요한가요?',
-  '그렇게 보면 책의 다른 대목과도 맞아떨어지나요?',
-  '처음 든 생각과 지금 생각이 달라졌나요?',
-]
 // 카드 문구 속 [가 / 나] 는 고르는 선택지 칩으로 보여 준다.
 const withChoices = (html) =>
   html.replace(/\[([^\]\n]+)\]/g, (_, s) => `<span class="opts">${s.split(' / ').map((o) => `<b>${o}</b>`).join('')}</span>`)
 
+// 서버(src/ask.js)가 예스24 책 소개를 읽고 만든 카드: 줄거리를 짧게 되짚는 첫 카드와 이 책에만 맞는 질문.
+const INTRO_CAT = '이 책은'
+const BOOK_CAT = '이 책의 질문'
+const MADE = { [INTRO_CAT]: '예스24 책 소개를 간추린 글', [BOOK_CAT]: '예스24 책 소개로 만든 질문' }
+
 function cueCard(q, i, total, c) {
-  const [main, ...sub] = withChoices(esc(q.body)).split('\n')
+  const [main, ...sub] = withChoices(esc(withHero(q.body, c.hero))).split('\n')
   const author = q.user_id && user(q.user_id)
-  let extra = ''
-  if (q.cat === '한줄평') {
-    const reviews = S.notes.filter((n) => n.cycle_id === c.id && n.kind === 'review')
-    const mine = reviews.find((n) => n.user_id === S.me.id)
-    extra = `<ul class="mini">${S.users
-      .map((u) => {
-        const r = reviews.find((n) => n.user_id === u.id)
-        return `<li class="c-${u.color}"><i></i><b>${esc(u.name)}</b> ${!r ? '<span class="soft">아직 안 썼어요</span>' : veiled(r, c) ? '<span class="soft">썼어요 · 내가 더 읽으면 보여요</span>' : `${r.rating ? stars(r.rating) : ''} <span>${esc(r.body)}</span>`}</li>`
-      })
-      .join('')}</ul>
-      <button class="btn small" ${mine ? `data-act="note-edit" data-id="${mine.id}"` : `data-act="note-new" data-kind="review" data-cycle="${c.id}"`}>⭐ 내 한줄평 ${mine ? '고치기' : '쓰기'}</button>`
-  }
-  if (q.cat === '밑줄') {
-    const quotes = S.notes.filter((n) => n.cycle_id === c.id && n.kind === 'quote')
-    if (quotes.length) extra = `<ul class="note-list">${quotes.map((n) => noteItem(n, c)).join('')}</ul>`
-  }
   const removable = !q.user_id || q.user_id === S.me.id
-  return `<article class="cue sec${q.sec}${author ? ` ours c-${author.color}` : ''}" aria-label="카드 ${i + 1}">
+  if (q.cat === INTRO_CAT) sub.push(why(c)) // 여는 카드에는 책을 고른 이유도 함께
+  return `<article class="cue${author ? ` ours c-${author.color}` : ''}" aria-label="카드 ${i + 1}">
     <header><span class="cat">${esc(q.cat)}</span><span>${i + 1} / ${total}</span></header>
     <div class="mid">
       <p class="q">${main}</p>
-      ${sub.length ? `<p class="sub">${sub.join('<br>')}</p>` : ''}
-      ${extra}
+      ${sub.filter(Boolean).length ? `<div class="sub">${sub.filter(Boolean).map((s) => (s.startsWith('<p') ? s : `<p>${s}</p>`)).join('')}</div>` : ''}
     </div>
-    ${q.sec === 1 ? `<p class="follow"><b>더 물어보기</b>${FOLLOW[i % FOLLOW.length]}</p>` : ''}
-    <footer><span>${author ? `${esc(author.name)}님의 질문` : '기본 카드'}</span>${removable ? `<button class="link" data-act="del-q" data-id="${q.id}">이 카드 빼기</button>` : ''}</footer>
+    <footer><span>${author ? `${esc(author.name)}님의 질문` : (MADE[q.cat] ?? '기본 카드')}</span>${removable ? `<button class="link" data-act="del-q" data-id="${q.id}">이 카드 빼기</button>` : ''}</footer>
   </article>`
 }
 
@@ -467,7 +469,13 @@ function talkView() {
   if (!c.title) return empty('💬', '아직 이번 책이 없어요', '책이 정해지면 토론 카드가 준비돼요.')
   const cards = S.questions.filter((q) => q.cycle_id === c.id)
   ui.card = Math.max(0, Math.min(ui.card, cards.length - 1))
+  // 카드 위 한 줄: 소설이면 주인공 이름, 아직 안 받았으면 책에 맞춘 질문 받기.
+  const tips = [
+    c.genre === 'fiction' && `<button class="link" data-act="hero">${c.hero ? `주인공 <b>${esc(c.hero)}</b> · 바꾸기` : '＋ 주인공 이름 적기'}</button>`,
+    ui.asking ? '<span class="soft">✨ 이 책에 맞는 질문을 만드는 중… (10초쯤)</span>' : S.ask && !cards.some((q) => q.cat === BOOK_CAT) && '<button class="link" data-act="ask-book">✨ 이 책에 맞는 질문 받기</button>',
+  ].filter(Boolean)
   return `<h2 class="title">『${esc(c.title)}』 토론장</h2>
+    ${tips.length ? `<p class="center hero">${tips.join(' · ')}</p>` : ''}
     <div class="deck" id="deck">${cards.map((q, i) => cueCard(q, i, cards.length, c)).join('')}</div>
     <div class="deck-nav">
       <button class="btn ghost" data-act="card" data-d="-1" aria-label="이전 카드">‹ 이전</button>
@@ -539,6 +547,7 @@ function bookDetail(it, owner) {
         <p class="eyebrow">${it.cycle ? `모임 도서 · ${esc(user(it.cycle.picker_id).name)}님의 선택` : `${esc(owner.name)}님의 책`}</p>
         <h2>${esc(it.title)}</h2>
         <p class="soft">${[it.author, `${it.pages}쪽`].filter(Boolean).map(esc).join(' · ')}</p>
+        ${why(it.cycle)}
         <p class="soft">${it.done ? `<span class="pill gold">완독 · ${fmtStamp(it.done)}</span>` : `${it.read} / ${it.pages}쪽 · ${pct(it.read, it.pages)}%`}</p>
       </div>
     </section>
@@ -551,7 +560,7 @@ function bookDetail(it, owner) {
     ${
       it.cycle?.closed && cards.length
         ? `<details class="card"><summary>그날의 토론 카드 ${cards.length}장</summary><ol class="past">${cards
-            .map((q) => `<li>${esc(q.body).split('\n')[0]}</li>`)
+            .map((q) => `<li>${esc(withHero(q.body, it.cycle.hero)).split('\n')[0]}</li>`)
             .join('')}</ol></details>`
         : ''
     }
@@ -896,10 +905,18 @@ const actions = {
       <label><span class="sr">질문</span><textarea name="body" required rows="4" maxlength="300" placeholder="이 장면에서는 어떻게 생각하시나요?"></textarea></label>
       <button class="btn wide">카드로 만들기</button>
     </form>`),
+  'ask-book': () => askBook(false),
+  hero: () =>
+    openSheet(`<form data-form="hero" class="form">
+      <h2>주인공 이름</h2>
+      <p class="soft">적어 두면 카드가 "내가 안진진이라면…"처럼 그 이름으로 물어봐요. 비워 두면 그냥 '주인공'이라고 해요.</p>
+      <label><span class="sr">주인공 이름</span><input name="name" maxlength="20" value="${esc(cur().hero ?? '')}" placeholder="예: 안진진" autocomplete="off"></label>
+      <button class="btn wide">카드에 넣기</button>
+    </form>`),
   async 'draw-q'() {
     const before = S.questions.length
     if (!(await act('question/draw', {}))) return
-    // 새 카드는 본 질문 맨 뒤(마무리 카드 앞)에 들어간다.
+    // 새 카드는 맨 뒤에 들어간다.
     const cards = S.questions.filter((q) => q.cycle_id === cur().id)
     if (S.questions.length > before) ui.card = cards.findLastIndex((q) => q.sec === 1)
     render()
@@ -975,10 +992,15 @@ const forms = {
   },
   async book(d) {
     const first = !cur().title
-    if (await act('book', d, first ? '책을 정했어요! 이제 토론일을 골라 주세요 📅' : '고쳤어요')) sheet.open && sheet.close()
+    if (!(await act('book', d, first ? '책을 정했어요! 이제 토론일을 골라 주세요 📅' : '고쳤어요'))) return
+    sheet.open && sheet.close()
+    if (first && S.ask) askBook(true) // 기다리게 하지 않고 뒤에서 받는다
   },
   async note(d) {
     if (await act('note', d, '기록했어요 ✏️')) sheet.close()
+  },
+  async hero(d) {
+    if (await act('hero', d, d.name.trim() ? '카드에 이름을 넣었어요' : "다시 '주인공'으로 물어요")) sheet.close()
   },
   async question(d) {
     if (!(await act('question', d, '카드를 추가했어요'))) return

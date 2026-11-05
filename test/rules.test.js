@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  pct, stageOf, phaseOf, todayKST, unanimous, crownOf, nextPicker, fame,
+  pct, stageOf, phaseOf, todayKST, unanimous, crownOf, nextPicker, fame, withHero,
 } from '../public/rules.js'
 
 test('pct: 다 읽어야만 100', () => {
@@ -95,26 +95,49 @@ test('fame: 우승 횟수와 완독 권수(모임 도서 + 개인 책)', () => {
 
 // ---- 토론 카드 덱 ----
 import { buildDeck, drawCard } from '../src/deck.js'
+import { CARDS, PLAN } from '../src/cards.js'
 
-test('buildDeck: 워밍업 2 → 밑줄·해석·입장·입장·연결 → 마무리 2~3, 중복 없음', () => {
+test('buildDeck: 분류 순서와 장수대로, base 카드는 늘 들어가고 중복 없음', () => {
   for (const genre of ['fiction', 'nonfiction', 'essay', '모르는 장르'])
     for (let i = 0; i < 200; i++) {
+      const g = genre in CARDS ? genre : 'fiction'
       const deck = buildDeck(genre)
-      assert.deepEqual(deck.slice(0, 2).map((c) => c.sec), [0, 0])
-      assert.deepEqual(deck.filter((c) => c.sec === 1).map((c) => c.cat), ['밑줄', '해석', '입장', '입장', '연결'])
-      const closing = deck.slice(7)
-      assert.ok(closing.length === 2 || closing.length === 3)
-      assert.ok(closing.every((c) => c.sec === 2))
-      assert.equal(closing.at(-1).cat, '한줄평')
+      assert.deepEqual(deck.map((c) => c.cat), PLAN[g].flatMap(([cat, n]) => Array(n).fill(cat)))
       assert.equal(new Set(deck.map((c) => c.body)).size, deck.length)
-      assert.ok(deck.every((c) => c.body && c.cat && Object.keys(c).length === 3))
+      assert.ok(deck.every((c) => c.sec === 1 && c.body && Object.keys(c).length === 3))
+      for (const base of CARDS[g].filter((c) => c.base)) assert.ok(deck.some((c) => c.body === base.body))
     }
+})
+
+test('카드: 분류마다 장수가 모자라지 않고, 책을 평가하거나 진행만 하는 카드는 없다', () => {
+  for (const [g, cards] of Object.entries(CARDS)) {
+    for (const [cat, n] of PLAN[g]) {
+      const inCat = cards.filter((c) => c.cat === cat)
+      assert.ok(inCat.length >= n && inCat.filter((c) => c.base).length <= n, `${g} ${cat}`)
+    }
+    assert.ok(cards.every((c) => PLAN[g].some(([cat]) => cat === c.cat)), `${g}: 덱에 안 쓰이는 분류`)
+    for (const c of cards) assert.doesNotMatch(c.body, /별점|별 다섯|한줄평|평판|소리 내어|추천|권하고|약점|덜어낸다면|하나 둘 셋/)
+  }
+  assert.ok(Object.values(CARDS).flat().every((c) => !/\{주인공/.test(c.body)) === false) // 소설 카드에는 주인공 자리가 있다
+  assert.ok([...CARDS.nonfiction, ...CARDS.essay].every((c) => !c.body.includes('{')))
 })
 
 test('drawCard: 덱에 없는 카드만 뽑고, 다 뽑으면 null', () => {
   const have = new Set(buildDeck('fiction').map((c) => c.body))
   for (let card; (card = drawCard('fiction', have)); have.add(card.body)) assert.ok(!have.has(card.body))
+  assert.equal(have.size, CARDS.fiction.length)
   assert.equal(drawCard('fiction', have), null)
+})
+
+test('withHero: 주인공 이름을 넣고 조사를 받침에 맞춘다', () => {
+  const body = '내가 {주인공:이라면}? {주인공:이} {주인공:은} {주인공:을} {주인공}에게'
+  assert.equal(withHero(body, '안진진'), '내가 안진진이라면? 안진진이 안진진은 안진진을 안진진에게')
+  assert.equal(withHero(body, '싱클레어'), '내가 싱클레어라면? 싱클레어가 싱클레어는 싱클레어를 싱클레어에게')
+  assert.equal(withHero(body, null), '내가 주인공이라면? 주인공이 주인공은 주인공을 주인공에게')
+  assert.equal(withHero(body, 'K'), '내가 K라면? K가 K는 K를 K에게')
+  assert.equal(withHero('주인공 없는 질문 [가 / 나]', '안진진'), '주인공 없는 질문 [가 / 나]')
+  // 카드에 쓴 조사는 모두 바꿀 줄 아는 것이어야 한다
+  for (const c of CARDS.fiction) assert.doesNotMatch(withHero(c.body, '싱클레어'), /[{}]|undefined/)
 })
 
 // ---- 책 찾기 (예스24 응답 → 우리 형식) ----

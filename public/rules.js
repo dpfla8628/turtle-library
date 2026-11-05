@@ -56,3 +56,13 @@ export const fame = (users, cycles, progress, books) => {
       books.filter((b) => b.user_id === u.id && b.finished_at != null).length,
   }))
 }
+
+// 카드 문구의 {주인공}, {주인공:이} 자리에 이름을 넣는다. 조사는 이름 끝 글자의 받침에 맞춘다(안진진이 / 싱클레어가).
+// 이름이 없으면 그냥 '주인공'. 한글로 끝나지 않는 이름은 받침이 없는 쪽으로 쓴다.
+const JOSA = { 이: '가', 은: '는', 을: '를', 이라면: '라면' }
+export function withHero(body, hero) {
+  const name = hero || '주인공'
+  const last = name.charCodeAt(name.length - 1)
+  const closed = last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 !== 0
+  return body.replace(/\{주인공(?::([가-힣]+))?\}/g, (_, josa) => name + (josa ? (closed ? josa : JOSA[josa]) : ''))
+}

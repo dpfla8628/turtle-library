@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS cycles (
   author TEXT,
   pages INTEGER,
   genre TEXT,
+  hero TEXT,  -- 소설의 주인공 이름(선택). 카드 문구의 {주인공} 자리에 들어간다
+  reason TEXT,  -- 책을 고른 이유(선택). 친구들에게 작게 보인다
   discussion_date TEXT,
   winner_id INTEGER REFERENCES users(id),  -- 마감할 때 정해지는 '가장 빨리 읽은 사람'
   closed INTEGER NOT NULL DEFAULT 0,
