@@ -186,7 +186,6 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 .critter { position: absolute; width: 19%; transform: translateX(-50%); display: grid; justify-items: center; background: none; border: 0; padding: 0; transition: left var(--t, 0s) linear; }
 .critter.s4 { width: 20%; }
 .critter .tag { font: 11px/1.5 var(--title); white-space: nowrap; background: #fff; border: 2px solid var(--cd); border-radius: 99px; padding: 0 7px; margin-bottom: 1px; }
-.critter.me .tag { background: var(--c); border-color: var(--ink); }
 .flip { display: block; width: 100%; }
 .left .flip { transform: scaleX(-1); }
 .critter svg, .ladder svg, .portrait svg, .login-art svg, .ava svg { display: block; width: 100%; height: auto; overflow: visible; }
