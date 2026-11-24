@@ -50,7 +50,7 @@ const ui = {
   card: 0, // 보고 있는 토론 카드
   asking: false, // 이 책에 맞는 질문을 만드는 중
   filter: 'all', // 기록 필터
-  sort: saved('sort') || 'new', // 기록 정렬: new(최신 등록순) · page(페이지 순서) · user(사용자별)
+  sort: saved('sort') || 'new', // 기록 정렬: new(최신 등록순) · page / page-desc(페이지 앞부터 / 뒤부터) · user(사용자별)
   shelfUser: null, // 서재 주인
   open: null, // 서재에서 연 책 { key, user }
   seen: new Set(), // 스포일러 가림을 푼 메모
@@ -424,10 +424,11 @@ function noteItem(n, cycle) {
 }
 
 // 정렬 방식. 받는 목록은 최신 등록순이고, 같은 조건 안에서는 그 순서를 지킨다.
-const SORT = { new: '최신 등록순', page: '페이지 순서', user: '사용자별' }
+const SORT = { new: '최신 등록순', page: '페이지 앞부터', 'page-desc': '페이지 뒤부터', user: '사용자별' }
 function sortNotes(list, sort) {
-  // 쪽수가 없는 기록(한줄평 등)은 페이지 순서에서 맨 뒤로 간다.
+  // 쪽수가 없는 기록(한줄평 등)은 어느 페이지 순서에서든 맨 뒤로 간다.
   if (sort === 'page') return [...list].sort((a, b) => (a.page || Infinity) - (b.page || Infinity))
+  if (sort === 'page-desc') return [...list].sort((a, b) => (b.page || -Infinity) - (a.page || -Infinity))
   // 나를 맨 앞에, 그다음은 친구들 순서대로.
   const rank = (n) => (n.user_id === S.me.id ? -1 : S.users.findIndex((u) => u.id === n.user_id))
   if (sort === 'user') return [...list].sort((a, b) => rank(a) - rank(b))
