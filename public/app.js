@@ -34,6 +34,14 @@ let raw = '' // 마지막으로 받은 상태(JSON 문자열). 바뀌었는지 �
 let stale = false // 받아 두고 아직 화면에 안 그린 상태가 있다
 let mounted = false
 let busy = false
+// 기기에 남겨 두는 작은 설정. 저장소가 막혀 있어도(사생활 보호 창 등) 앱은 그대로 돌아간다.
+const saved = (k) => {
+  try {
+    return localStorage.getItem('turtle-' + k)
+  } catch {
+    return null
+  }
+}
 const ui = {
   tab: 'home',
   month: null, // 달력에 보이는 달 'YYYY-MM'
@@ -42,6 +50,7 @@ const ui = {
   card: 0, // 보고 있는 토론 카드
   asking: false, // 이 책에 맞는 질문을 만드는 중
   filter: 'all', // 기록 필터
+  sort: saved('sort') || 'new', // 기록 정렬: new(최신 등록순) · page(페이지 순서) · user(사용자별)
   shelfUser: null, // 서재 주인
   open: null, // 서재에서 연 책 { key, user }
   seen: new Set(), // 스포일러 가림을 푼 메모
@@ -414,13 +423,32 @@ function noteItem(n, cycle) {
   </li>`
 }
 
+// 정렬 방식. 받는 목록은 최신 등록순이고, 같은 조건 안에서는 그 순서를 지킨다.
+const SORT = { new: '최신 등록순', page: '페이지 순서', user: '사용자별' }
+function sortNotes(list, sort) {
+  // 쪽수가 없는 기록(한줄평 등)은 페이지 순서에서 맨 뒤로 간다.
+  if (sort === 'page') return [...list].sort((a, b) => (a.page || Infinity) - (b.page || Infinity))
+  // 나를 맨 앞에, 그다음은 친구들 순서대로.
+  const rank = (n) => (n.user_id === S.me.id ? -1 : S.users.findIndex((u) => u.id === n.user_id))
+  if (sort === 'user') return [...list].sort((a, b) => rank(a) - rank(b))
+  return list
+}
+const groupHead = (id, list) => {
+  const u = user(id)
+  return `<li class="note-group c-${u.color}"><i></i><b>${esc(u.name)}</b><span>${list.filter((n) => n.user_id === id).length}</span></li>`
+}
+
 // cycle(모임 도서: 모두의 기록) 또는 book(개인 책: 주인의 기록)
 function notesSection({ cycle, book }) {
   const all = S.notes.filter((n) => (cycle ? n.cycle_id === cycle.id : n.book_id === book.id)).reverse()
   const target = cycle ? `data-cycle="${cycle.id}"` : `data-book="${book.id}"`
   const canWrite = cycle || book.user_id === S.me.id
   const review = all.find((n) => n.kind === 'review' && n.user_id === S.me.id)
-  const list = all.filter((n) => ui.filter === 'all' || n.kind === ui.filter)
+  // 정렬: 개인 책은 쓴 사람이 한 명뿐이라 "사용자별"이 없다.
+  const sorts = Object.entries(SORT).filter(([k]) => cycle || k !== 'user')
+  const sort = sorts.some(([k]) => k === ui.sort) ? ui.sort : 'new'
+  const list = sortNotes(all.filter((n) => ui.filter === 'all' || n.kind === ui.filter), sort)
+  const items = list.map((n, i) => (sort === 'user' && n.user_id !== list[i - 1]?.user_id ? groupHead(n.user_id, list) : '') + noteItem(n, cycle)).join('')
   return `<section class="notes">
     ${
       canWrite
@@ -433,10 +461,13 @@ function notesSection({ cycle, book }) {
     }
     ${
       all.length
-        ? `<div class="seg" role="group" aria-label="기록 종류">${[['all', '전체'], ...Object.entries(KIND)]
-            .map(([k, v]) => `<button data-act="filter" data-f="${k}" aria-pressed="${ui.filter === k}">${v} ${k === 'all' ? all.length : all.filter((n) => n.kind === k).length}</button>`)
-            .join('')}</div>
-          <ul class="note-list">${list.map((n) => noteItem(n, cycle)).join('') || '<li class="soft center">이 종류의 기록은 아직 없어요</li>'}</ul>`
+        ? `<div class="note-bar">
+            <div class="seg" role="group" aria-label="기록 종류">${[['all', '전체'], ...Object.entries(KIND)]
+              .map(([k, v]) => `<button data-act="filter" data-f="${k}" aria-pressed="${ui.filter === k}">${v} ${k === 'all' ? all.length : all.filter((n) => n.kind === k).length}</button>`)
+              .join('')}</div>
+            <select class="sort" data-change="sort" aria-label="정렬 방식">${sorts.map(([k, v]) => `<option value="${k}"${k === sort ? ' selected' : ''}>${v}</option>`).join('')}</select>
+          </div>
+          <ul class="note-list">${items || '<li class="soft center">이 종류의 기록은 아직 없어요</li>'}</ul>`
         : `<p class="soft center pad">${canWrite ? '아직 기록이 없어요. 읽다가 떠오른 생각이나 마음에 남은 문장을 적어 보세요.' : '아직 기록이 없어요.'}</p>`
     }
   </section>`
@@ -1057,6 +1088,18 @@ async function once(fn) {
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]')
   if (el && !el.disabled) once(() => actions[el.dataset.act]?.(el))
+})
+
+// 기록 정렬 방식을 고르면 바로 바꾸고, 다음에 열 때도 그대로 둔다.
+document.addEventListener('change', (e) => {
+  if (e.target.dataset.change !== 'sort') return
+  ui.sort = e.target.value
+  try {
+    localStorage.setItem('turtle-sort', ui.sort)
+  } catch {
+    // 저장하지 못해도 이번 화면에서는 바뀐다.
+  }
+  render()
 })
 
 document.addEventListener('submit', (e) => {

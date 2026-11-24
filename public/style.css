@@ -272,7 +272,13 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 /* ---------- 기록 ---------- */
 .notes { margin-top: 10px; }
 .write { display: flex; flex-wrap: wrap; gap: 8px; }
-.seg { display: flex; gap: 6px; margin: 14px 0 10px; overflow-x: auto; scrollbar-width: none; }
+.note-bar { display: flex; align-items: center; gap: 8px; margin: 14px 0 10px; }
+.seg { display: flex; gap: 6px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.sort { flex: none; min-height: 34px; padding: 3px 8px; background: #fff; border: 1.5px solid var(--line-strong); border-radius: 99px; font: 13px var(--title); color: var(--ink); }
+.note-group { display: flex; align-items: center; gap: 6px; margin-top: 6px; font: 14px var(--title); }
+.note-group:first-child { margin-top: 0; }
+.note-group i { width: 10px; height: 10px; border-radius: 50%; background: var(--cd); flex: none; }
+.note-group span { color: var(--ink-soft); font-size: 12px; }
 .seg button { flex: none; background: #fff; border: 1.5px solid var(--line-strong); border-radius: 99px; padding: 3px 12px; min-height: 34px; font: 13px var(--title); color: var(--ink-soft); }
 .seg [aria-pressed='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .note-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
