@@ -209,8 +209,7 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 @keyframes flutter { to { transform: rotate(8deg); } }
 @keyframes hop { 50% { transform: translateY(var(--hop)); } }
 .crown { transform-box: fill-box; transform-origin: 50% 100%; animation: crown 1.8s ease-in-out infinite; }
-.medal { transform-box: fill-box; transform-origin: 50% 0; animation: medal 2.2s ease-in-out infinite; }
-@keyframes medal { 50% { transform: rotate(6deg); } }
+.mini-crown { width: 1.15em; height: 0.7em; vertical-align: -0.02em; }
 @keyframes crown { 50% { transform: translateY(-1.5px) rotate(-3deg); } }
 .evolve .flip { animation: pop 1.8s ease; }
 @keyframes pop { 0% { transform: scale(0.3) rotate(-25deg); } 35% { transform: scale(1.6) rotate(8deg); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }

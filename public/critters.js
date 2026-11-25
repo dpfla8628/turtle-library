@@ -66,28 +66,27 @@ const RABBIT = `<circle cx="22" cy="78" r="8.5" fill="${CREAM}"/>
    <ellipse cx="60.5" cy="56" rx="2.4" ry="1.7" fill="#ff8fa3"/>
    ${eyes(52, 69, 50)}${wMouth(60.5, 59)}`
 
-// 왕관은 가장 먼저 다 읽은 사람, 곧 토끼만 쓴다.
+// 왕관은 가장 먼저 다 읽은 사람(금), 두 번째로 다 읽은 사람(은)이 쓴다. 둘 다 토끼만 쓴다.
 // CSS 애니메이션의 transform 은 SVG transform 속성을 덮어쓴다. 그래서 자리는 바깥 g, 흔들림(.crown)은 안쪽 g 가 맡는다.
-const CROWN = `<g transform="translate(60 30)"><g class="crown">
-  <path d="M-14 0 L-16 -14 L-7.5 -7 L0 -18 L7.5 -7 L16 -14 L14 0 Z" fill="#f9cf4a" stroke="#dfa521" stroke-width="1.6" stroke-linejoin="round"/>
+const CROWN_PATH = 'M-14 0 L-16 -14 L-7.5 -7 L0 -18 L7.5 -7 L16 -14 L14 0 Z'
+const GOLD = { fill: '#f9cf4a', line: '#dfa521' }
+const SILVER = { fill: '#e4e9ef', line: '#9eaab8' }
+const crown = ({ fill, line }) => `<g transform="translate(60 30)"><g class="crown">
+  <path d="${CROWN_PATH}" fill="${fill}" stroke="${line}" stroke-width="1.6" stroke-linejoin="round"/>
   <circle cx="0" cy="-5.5" r="2.2" fill="#ff8fa3"/><circle cx="-8.5" cy="-4" r="1.5" fill="#8fd3f4"/><circle cx="8.5" cy="-4" r="1.5" fill="#8fd3f4"/>
 </g></g>`
 
-// 은메달은 두 번째로 다 읽은 토끼의 가슴에 건다. 왕관처럼 자리는 바깥 g, 흔들림(.medal)은 안쪽 g.
-const MEDAL = `<g transform="translate(53 69)"><g class="medal">
-  <path d="M-6 -1 L-1.5 9 M6 -1 L1.5 9" stroke="#7fb8e6" stroke-width="3.4" stroke-linecap="round"/>
-  <circle cx="0" cy="13" r="6" fill="#e3e8ee" stroke="#a7b2bf" stroke-width="1.5"/>
-  <path d="M0 9.6 L1.1 11.9 L3.5 12.2 L1.7 13.8 L2.2 16.2 L0 15 L-2.2 16.2 L-1.7 13.8 L-3.5 12.2 L-1.1 11.9 Z" fill="#fff"/>
-</g></g>`
+// 이름 옆에 붙이는 작은 은왕관 (은색 왕관 이모지가 없어서 그림으로 그린다).
+export const SILVER_ICON = `<svg class="mini-crown" viewBox="-17 -19 34 20" role="img" aria-label="은왕관"><path d="${CROWN_PATH}" fill="${SILVER.fill}" stroke="${SILVER.line}" stroke-width="2" stroke-linejoin="round"/></svg>`
 
 // 그림 위쪽의 빈 공간을 잘라 이름표가 머리 바로 위에 붙게 한다.
 const TOP = [57, 55, 50, 46, 0]
 
-export const critterSVG = (stage, crowned = false, medal = false) => {
+export const critterSVG = (stage, crowned = false, silver = false) => {
   const art =
     stage < 4
       ? `<g transform="translate(50 94) scale(${SIZE[stage]}) translate(-50 -94)"><g class="body">${turtle(stage)}</g></g>`
-      : `<g class="body">${RABBIT}</g>${crowned ? CROWN : ''}${medal ? MEDAL : ''}`
+      : `<g class="body">${RABBIT}</g>${crowned ? crown(GOLD) : silver ? crown(SILVER) : ''}`
   return `<svg viewBox="0 ${TOP[stage]} 100 ${100 - TOP[stage]}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${art}</svg>`
 }
 
@@ -226,16 +225,16 @@ export function updateScene(members, stageNames) {
       wander(c)
     }
     c.stage = m.stage
-    const sig = `${m.stage}|${m.crown}|${m.medal}|${m.color}|${m.me}`
+    const sig = `${m.stage}|${m.crown}|${m.silver}|${m.color}|${m.me}`
     if (sig !== c.sig) {
       // walk / left 같은 움직임 클래스는 남기고 모습만 바꾼다
       const moving = ['walk', 'left', 'evolve'].filter((k) => c.el.classList.contains(k)).join(' ')
       c.el.className = `critter c-${m.color} s${m.stage}${m.me ? ' me' : ''} ${moving}`
-      c.el.querySelector('.flip').innerHTML = critterSVG(m.stage, m.crown, m.medal)
+      c.el.querySelector('.flip').innerHTML = critterSVG(m.stage, m.crown, m.silver)
       c.sig = sig
     }
     c.el.querySelector('.tag').textContent = `${m.name} ${m.percent}%`
-    c.el.setAttribute('aria-label', `${m.name}, ${stageNames[m.stage]}, ${m.percent}% 읽음${m.crown ? ', 왕관' : m.medal ? ', 은메달' : ''}`)
+    c.el.setAttribute('aria-label', `${m.name}, ${stageNames[m.stage]}, ${m.percent}% 읽음${m.crown ? ', 왕관' : m.silver ? ', 은왕관' : ''}`)
   })
 }
 

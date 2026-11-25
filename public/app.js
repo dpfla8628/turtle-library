@@ -1,6 +1,6 @@
 // 거북이 도서관 화면. 서버가 주는 전체 상태(S)를 받아 그대로 다시 그린다.
 import { STAGES, pct, stageOf, phaseOf, unanimous, finishOrder, fame, withHero, isHex, tone } from './rules.js'
-import { critterSVG, mountScene, updateScene, celebrate, motion, setMotion } from './critters.js'
+import { critterSVG, SILVER_ICON, mountScene, updateScene, celebrate, motion, setMotion } from './critters.js'
 
 const $ = (sel, root = document) => root.querySelector(sel)
 const esc = (s) =>
@@ -135,8 +135,8 @@ const user = (id) => S.users.find((u) => u.id === id)
 const cur = () => S.cycles.find((c) => !c.closed)
 const readOf = (cycleId, userId) => S.progress.find((p) => p.cycle_id === cycleId && p.user_id === userId)?.pages_read ?? 0
 
-// 이름 옆 표시: 1등 왕관, 2등 은메달.
-const badge = (m) => (m.crown ? ' 👑' : m.medal ? ' 🥈' : '')
+// 이름 옆 표시: 1등 금왕관, 2등 은왕관.
+const badge = (m) => (m.crown ? ' 👑' : m.silver ? ` ${SILVER_ICON}` : '')
 
 function members() {
   const c = cur()
@@ -144,7 +144,7 @@ function members() {
   return S.users.map((u) => {
     const pages = readOf(c.id, u.id)
     const percent = pct(pages, c.pages)
-    return { ...u, pages, percent, stage: stageOf(percent), crown: order[0] === u.id, medal: order[1] === u.id, me: u.id === S.me.id }
+    return { ...u, pages, percent, stage: stageOf(percent), crown: order[0] === u.id, silver: order[1] === u.id, me: u.id === S.me.id }
   })
 }
 
@@ -196,7 +196,7 @@ function render() {
   const me = ms.find((m) => m.me)
   $('#top').innerHTML = `
     <h1><span aria-hidden="true">🐢</span> 거북이 도서관</h1>
-    <button class="me c-${me.color}" data-act="profile" aria-label="내 정보">${critterSVG(me.stage, me.crown, me.medal)}<span>${esc(me.name)}</span></button>`
+    <button class="me c-${me.color}" data-act="profile" aria-label="내 정보">${critterSVG(me.stage, me.crown, me.silver)}<span>${esc(me.name)}</span></button>`
   $('#tabs').innerHTML = TABS.map(
     ([id, icon, label]) =>
       `<button data-act="tab" data-tab="${id}" ${ui.tab === id ? 'aria-current="page"' : ''}><span aria-hidden="true">${icon}</span>${label}</button>`,
@@ -892,10 +892,10 @@ const actions = {
     const m = members().find((x) => x.id === Number(el.dataset.id))
     const c = cur()
     openSheet(`<div class="whois c-${m.color}">
-      <div class="portrait">${critterSVG(m.stage, m.crown, m.medal)}</div>
+      <div class="portrait">${critterSVG(m.stage, m.crown, m.silver)}</div>
       <h2>${esc(m.name)}${badge(m)}</h2>
       <p class="soft">${STAGES[m.stage].name}${c.title ? ` · ${m.pages} / ${c.pages}쪽 (${m.percent}%)` : ''}</p>
-      ${m.crown ? '<p class="pill gold">이번 책을 가장 먼저 다 읽었어요</p>' : m.medal ? '<p class="pill silver">이번 책을 두 번째로 다 읽었어요</p>' : ''}
+      ${m.crown ? '<p class="pill gold">이번 책을 가장 먼저 다 읽었어요</p>' : m.silver ? '<p class="pill silver">이번 책을 두 번째로 다 읽었어요</p>' : ''}
       ${ladder(m.stage, m.color)}
       <button class="btn ghost wide" data-act="shelf-user" data-id="${m.id}">${m.me ? '나의 서재 가기' : '서재 구경하기'}</button>
     </div>`)
@@ -948,7 +948,7 @@ const actions = {
         const m = members().find((x) => x.me)
         toast(
           after === 4 && m.crown ? '👑 가장 먼저 다 읽었어요! 토끼로 진화!'
-          : after === 4 && m.medal ? '🥈 두 번째로 다 읽었어요! 토끼로 진화!'
+          : after === 4 && m.silver ? '두 번째로 다 읽었어요! 은왕관을 쓴 토끼로 진화!'
           : `🎉 ${STAGES[after].name}로 진화했어요!`,
         )
       } else if (ok) toast(pages >= cycle.pages ? '완독! 🎉' : '기록했어요')
