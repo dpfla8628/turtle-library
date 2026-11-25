@@ -381,7 +381,8 @@ function ddayCard(c, phase) {
   return `<section class="card dday ${phase}">
     <p class="eyebrow">토론하는 날</p>
     <div class="row between"><strong class="big">${phase === 'dday' ? '오늘이에요! 🎉' : `D-${daysUntil(c.discussion_date)}`}</strong><span>${fmtDate(c.discussion_date)}</span></div>
-    ${phase === 'dday' ? `<button class="btn wide" data-act="tab" data-tab="talk">토론장 들어가기</button>` : ''}
+    ${phase === 'dday' ? `<button class="btn wide" data-act="tab" data-tab="talk">토론장 들어가기</button>
+      <button class="btn ghost wide" data-act="finish">✅ 토론 완료했어요</button>` : ''}
     <button class="link" data-act="reschedule">날짜 다시 정하기</button>
   </section>`
 }
@@ -940,6 +941,13 @@ const actions = {
       ui.month = null
       await act('reschedule', {}, '날짜를 다시 골라 주세요')
     }),
+  finish: () =>
+    confirmSheet(
+      '토론을 마쳤나요?',
+      '이번 책을 마감하고 바로 다음 사람이 책을 고를 차례로 넘어가요. 잘못 눌렀으면 새 책을 고르기 전까지 되돌릴 수 있어요.',
+      '토론 완료',
+      () => act('finish', {}, '수고했어요! 🎉 다음 책을 골라 주세요'),
+    ),
   reopen: () =>
     confirmSheet('지난 책으로 돌아갈까요?', '방금 넘어간 빈 책 차례를 지우고, 지난 책을 다시 열어요. 토론일을 모두 다시 골라야 해요.', '되돌리기', () => act('reopen', {}, '지난 책을 다시 열었어요')),
 

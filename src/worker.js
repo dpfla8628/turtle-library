@@ -230,9 +230,10 @@ async function auth(req, db, now) {
 // ---- 사이클 넘기기 ----
 // 토론 다음 날이 되면 이번 책을 마감하고(우승자 기록) 다음 타자의 새 사이클을 연다.
 // 누군가 접속할 때, 그리고 매일 아침 크론에서 확인한다. 실제로 넘어갔으면 알릴 소식을 돌려준다.
-async function rollover(db, now, today) {
+// force: 토론 당일에 "토론 완료"를 누르면 다음 날을 기다리지 않고 바로 넘긴다.
+async function rollover(db, now, today, force = false) {
   const cur = await db.prepare('SELECT * FROM cycles WHERE closed = 0').first()
-  if (cur && !(cur.discussion_date && cur.discussion_date < today)) return
+  if (cur && !force && !(cur.discussion_date && cur.discussion_date < today)) return
   let winner = null
   if (cur) {
     const { results } = await db.prepare('SELECT user_id, finished_at FROM progress WHERE cycle_id = ?').bind(cur.id).all()
@@ -409,6 +410,13 @@ const POST = {
       db.prepare('UPDATE availability SET confirmed = 0 WHERE cycle_id = ?').bind(cur.id),
     ])
     return cur.discussion_date ? rescheduleNews({ name: me.name, book: cur }) : null
+  },
+
+  // 토론 당일에 토론을 마쳤다고 알리면 바로 이번 책을 마감하고 다음 사람이 책을 고를 차례로 넘긴다.
+  // 잘못 눌렀으면 새 책이 정해지기 전까지 "되돌리기"(reopen)로 돌아갈 수 있다.
+  async finish({ db, now, today, cur }) {
+    if (cur?.discussion_date !== today) throw new Oops(409, '토론 당일에만 토론 완료를 누를 수 있어요')
+    return rollover(db, now, today, true)
   },
 
   // 방금 넘어간 것을 되돌린다. 토론을 못 했는데 날짜가 지나 책이 넘어가 버렸을 때 쓴다.
