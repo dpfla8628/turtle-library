@@ -73,14 +73,21 @@ const CROWN = `<g transform="translate(60 30)"><g class="crown">
   <circle cx="0" cy="-5.5" r="2.2" fill="#ff8fa3"/><circle cx="-8.5" cy="-4" r="1.5" fill="#8fd3f4"/><circle cx="8.5" cy="-4" r="1.5" fill="#8fd3f4"/>
 </g></g>`
 
+// 은메달은 두 번째로 다 읽은 토끼의 가슴에 건다. 왕관처럼 자리는 바깥 g, 흔들림(.medal)은 안쪽 g.
+const MEDAL = `<g transform="translate(53 69)"><g class="medal">
+  <path d="M-6 -1 L-1.5 9 M6 -1 L1.5 9" stroke="#7fb8e6" stroke-width="3.4" stroke-linecap="round"/>
+  <circle cx="0" cy="13" r="6" fill="#e3e8ee" stroke="#a7b2bf" stroke-width="1.5"/>
+  <path d="M0 9.6 L1.1 11.9 L3.5 12.2 L1.7 13.8 L2.2 16.2 L0 15 L-2.2 16.2 L-1.7 13.8 L-3.5 12.2 L-1.1 11.9 Z" fill="#fff"/>
+</g></g>`
+
 // 그림 위쪽의 빈 공간을 잘라 이름표가 머리 바로 위에 붙게 한다.
 const TOP = [57, 55, 50, 46, 0]
 
-export const critterSVG = (stage, crowned = false) => {
+export const critterSVG = (stage, crowned = false, medal = false) => {
   const art =
     stage < 4
       ? `<g transform="translate(50 94) scale(${SIZE[stage]}) translate(-50 -94)"><g class="body">${turtle(stage)}</g></g>`
-      : `<g class="body">${RABBIT}</g>${crowned ? CROWN : ''}`
+      : `<g class="body">${RABBIT}</g>${crowned ? CROWN : ''}${medal ? MEDAL : ''}`
   return `<svg viewBox="0 ${TOP[stage]} 100 ${100 - TOP[stage]}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${art}</svg>`
 }
 
@@ -219,16 +226,16 @@ export function updateScene(members, stageNames) {
       wander(c)
     }
     c.stage = m.stage
-    const sig = `${m.stage}|${m.crown}|${m.color}|${m.me}`
+    const sig = `${m.stage}|${m.crown}|${m.medal}|${m.color}|${m.me}`
     if (sig !== c.sig) {
       // walk / left 같은 움직임 클래스는 남기고 모습만 바꾼다
       const moving = ['walk', 'left', 'evolve'].filter((k) => c.el.classList.contains(k)).join(' ')
       c.el.className = `critter c-${m.color} s${m.stage}${m.me ? ' me' : ''} ${moving}`
-      c.el.querySelector('.flip').innerHTML = critterSVG(m.stage, m.crown)
+      c.el.querySelector('.flip').innerHTML = critterSVG(m.stage, m.crown, m.medal)
       c.sig = sig
     }
     c.el.querySelector('.tag').textContent = `${m.name} ${m.percent}%`
-    c.el.setAttribute('aria-label', `${m.name}, ${stageNames[m.stage]}, ${m.percent}% 읽음${m.crown ? ', 왕관' : ''}`)
+    c.el.setAttribute('aria-label', `${m.name}, ${stageNames[m.stage]}, ${m.percent}% 읽음${m.crown ? ', 왕관' : m.medal ? ', 은메달' : ''}`)
   })
 }
 

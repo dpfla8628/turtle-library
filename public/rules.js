@@ -32,11 +32,16 @@ export function unanimous(avail, memberIds, today) {
   return [...sets[0]].filter((d) => d > today && sets.every((s) => s.has(d))).sort()
 }
 
-// 가장 먼저 완독한 사람 = 이번 책의 왕관 주인.
-export function crownOf(progress) {
-  const done = progress.filter((p) => p.finished_at != null)
-  return done.length ? done.reduce((a, b) => (b.finished_at < a.finished_at ? b : a)).user_id : null
+// 완독한 순서대로 사람 id. 같은 순간이면 id 가 작은 쪽이 앞 (서버의 ORDER BY finished_at, user_id 와 같다).
+export function finishOrder(progress) {
+  return progress
+    .filter((p) => p.finished_at != null)
+    .sort((a, b) => a.finished_at - b.finished_at || a.user_id - b.user_id)
+    .map((p) => p.user_id)
 }
+
+// 가장 먼저 완독한 사람 = 이번 책의 왕관 주인. 두 번째는 은메달을 건다.
+export const crownOf = (progress) => finishOrder(progress)[0] ?? null
 
 export function nextPicker(users, currentId) {
   const order = [...users].sort((a, b) => a.ord - b.ord)

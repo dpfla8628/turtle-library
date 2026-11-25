@@ -67,6 +67,7 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 .grow { flex: 1; }
 .pill { display: inline-block; font: 13px var(--title); background: var(--c, var(--peach-soft)); border-radius: 99px; padding: 3px 12px; }
 .pill.gold { background: var(--gold); }
+.pill.silver { background: #e6eaef; }
 .warn { background: #ffe6df; border-radius: 14px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
 .empty .emoji { font-size: 44px; margin: 0; }
 
@@ -208,6 +209,8 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 @keyframes flutter { to { transform: rotate(8deg); } }
 @keyframes hop { 50% { transform: translateY(var(--hop)); } }
 .crown { transform-box: fill-box; transform-origin: 50% 100%; animation: crown 1.8s ease-in-out infinite; }
+.medal { transform-box: fill-box; transform-origin: 50% 0; animation: medal 2.2s ease-in-out infinite; }
+@keyframes medal { 50% { transform: rotate(6deg); } }
 @keyframes crown { 50% { transform: translateY(-1.5px) rotate(-3deg); } }
 .evolve .flip { animation: pop 1.8s ease; }
 @keyframes pop { 0% { transform: scale(0.3) rotate(-25deg); } 35% { transform: scale(1.6) rotate(8deg); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }

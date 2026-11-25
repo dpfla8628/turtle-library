@@ -1,5 +1,5 @@
 // 거북이 도서관 화면. 서버가 주는 전체 상태(S)를 받아 그대로 다시 그린다.
-import { STAGES, pct, stageOf, phaseOf, unanimous, crownOf, fame, withHero, isHex, tone } from './rules.js'
+import { STAGES, pct, stageOf, phaseOf, unanimous, finishOrder, fame, withHero, isHex, tone } from './rules.js'
 import { critterSVG, mountScene, updateScene, celebrate, motion, setMotion } from './critters.js'
 
 const $ = (sel, root = document) => root.querySelector(sel)
@@ -135,13 +135,16 @@ const user = (id) => S.users.find((u) => u.id === id)
 const cur = () => S.cycles.find((c) => !c.closed)
 const readOf = (cycleId, userId) => S.progress.find((p) => p.cycle_id === cycleId && p.user_id === userId)?.pages_read ?? 0
 
+// 이름 옆 표시: 1등 왕관, 2등 은메달.
+const badge = (m) => (m.crown ? ' 👑' : m.medal ? ' 🥈' : '')
+
 function members() {
   const c = cur()
-  const crowned = crownOf(S.progress.filter((p) => p.cycle_id === c.id))
+  const order = finishOrder(S.progress.filter((p) => p.cycle_id === c.id))
   return S.users.map((u) => {
     const pages = readOf(c.id, u.id)
     const percent = pct(pages, c.pages)
-    return { ...u, pages, percent, stage: stageOf(percent), crown: crowned === u.id, me: u.id === S.me.id }
+    return { ...u, pages, percent, stage: stageOf(percent), crown: order[0] === u.id, medal: order[1] === u.id, me: u.id === S.me.id }
   })
 }
 
@@ -193,7 +196,7 @@ function render() {
   const me = ms.find((m) => m.me)
   $('#top').innerHTML = `
     <h1><span aria-hidden="true">🐢</span> 거북이 도서관</h1>
-    <button class="me c-${me.color}" data-act="profile" aria-label="내 정보">${critterSVG(me.stage, me.crown)}<span>${esc(me.name)}</span></button>`
+    <button class="me c-${me.color}" data-act="profile" aria-label="내 정보">${critterSVG(me.stage, me.crown, me.medal)}<span>${esc(me.name)}</span></button>`
   $('#tabs').innerHTML = TABS.map(
     ([id, icon, label]) =>
       `<button data-act="tab" data-tab="${id}" ${ui.tab === id ? 'aria-current="page"' : ''}><span aria-hidden="true">${icon}</span>${label}</button>`,
@@ -201,7 +204,7 @@ function render() {
   $('#lobby').hidden = ui.tab !== 'home'
   updateScene(ms, STAGES.map((s) => s.name))
   $('#pages').innerHTML = c.title
-    ? ms.map((m) => `<span class="chip c-${m.color}"><i></i>${esc(m.name)} <b>${m.pages}쪽</b>${m.crown ? ' 👑' : ''}</span>`).join('')
+    ? ms.map((m) => `<span class="chip c-${m.color}"><i></i>${esc(m.name)} <b>${m.pages}쪽</b>${badge(m)}</span>`).join('')
     : ''
   $('#view').innerHTML = VIEWS[ui.tab]()
 
@@ -889,10 +892,10 @@ const actions = {
     const m = members().find((x) => x.id === Number(el.dataset.id))
     const c = cur()
     openSheet(`<div class="whois c-${m.color}">
-      <div class="portrait">${critterSVG(m.stage, m.crown)}</div>
-      <h2>${esc(m.name)}${m.crown ? ' 👑' : ''}</h2>
+      <div class="portrait">${critterSVG(m.stage, m.crown, m.medal)}</div>
+      <h2>${esc(m.name)}${badge(m)}</h2>
       <p class="soft">${STAGES[m.stage].name}${c.title ? ` · ${m.pages} / ${c.pages}쪽 (${m.percent}%)` : ''}</p>
-      ${m.crown ? '<p class="pill gold">이번 책을 가장 먼저 다 읽었어요</p>' : ''}
+      ${m.crown ? '<p class="pill gold">이번 책을 가장 먼저 다 읽었어요</p>' : m.medal ? '<p class="pill silver">이번 책을 두 번째로 다 읽었어요</p>' : ''}
       ${ladder(m.stage, m.color)}
       <button class="btn ghost wide" data-act="shelf-user" data-id="${m.id}">${m.me ? '나의 서재 가기' : '서재 구경하기'}</button>
     </div>`)
@@ -942,7 +945,12 @@ const actions = {
       const after = stageOf(pct(pages, cycle.pages))
       if (ok && !cycle.closed && after > before) {
         celebrate(S.me.id)
-        toast(after === 4 && members().find((m) => m.me).crown ? '👑 가장 먼저 다 읽었어요! 토끼로 진화!' : `🎉 ${STAGES[after].name}로 진화했어요!`)
+        const m = members().find((x) => x.me)
+        toast(
+          after === 4 && m.crown ? '👑 가장 먼저 다 읽었어요! 토끼로 진화!'
+          : after === 4 && m.medal ? '🥈 두 번째로 다 읽었어요! 토끼로 진화!'
+          : `🎉 ${STAGES[after].name}로 진화했어요!`,
+        )
       } else if (ok) toast(pages >= cycle.pages ? '완독! 🎉' : '기록했어요')
     } else {
       const b = S.books.find((x) => x.id === Number(id))

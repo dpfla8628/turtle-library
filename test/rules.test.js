@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  pct, stageOf, phaseOf, todayKST, unanimous, crownOf, nextPicker, fame, withHero, isHex, tone,
+  pct, stageOf, phaseOf, todayKST, unanimous, crownOf, finishOrder, nextPicker, fame, withHero, isHex, tone,
 } from '../public/rules.js'
 
 test('tone: 직접 고른 색은 그대로 쓰되, 글자가 안 읽힐 만큼 어두우면 밝힌다', () => {
@@ -88,6 +88,16 @@ test('crownOf: 가장 먼저 완독한 사람, 없으면 null', () => {
     { user_id: 2, finished_at: 100 },
     { user_id: 3, finished_at: null },
   ]), 2)
+})
+
+test('finishOrder: 완독한 순서, 같은 순간이면 id 순, 안 읽은 사람은 빠진다', () => {
+  assert.deepEqual(finishOrder([]), [])
+  assert.deepEqual(finishOrder([
+    { user_id: 4, finished_at: 300 },
+    { user_id: 2, finished_at: 100 },
+    { user_id: 3, finished_at: null },
+    { user_id: 1, finished_at: 300 },
+  ]), [2, 1, 4])
 })
 
 test('nextPicker: 순번대로 돌고 마지막 다음은 처음', () => {
