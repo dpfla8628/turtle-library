@@ -209,6 +209,11 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 @keyframes flutter { to { transform: rotate(8deg); } }
 @keyframes hop { 50% { transform: translateY(var(--hop)); } }
 .crown { transform-box: fill-box; transform-origin: 50% 100%; animation: crown 1.8s ease-in-out infinite; }
+.pill.poop { background: #f1e1cf; }
+.poop { transform-box: fill-box; transform-origin: 50% 100%; animation: poop 2.4s ease-in-out infinite; }
+@keyframes poop { 50% { transform: scale(1.04, .96); } }
+.fly { animation: fly 1.8s ease-in-out infinite; }
+@keyframes fly { 25% { transform: translate(3px, -2px); } 50% { transform: translate(-1px, 2px); } 75% { transform: translate(-3px, -1px); } }
 .mini-crown { width: 1.15em; height: 0.7em; vertical-align: -0.02em; }
 @keyframes crown { 50% { transform: translateY(-1.5px) rotate(-3deg); } }
 .evolve .flip { animation: pop 1.8s ease; }

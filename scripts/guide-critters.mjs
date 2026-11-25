@@ -9,7 +9,7 @@ const file = new URL('../public/guide.html', import.meta.url)
 let count = 0
 const html = readFileSync(file, 'utf8').replace(
   /(<(div|span)\b[^>]*\sdata-critter="(\d)"( data-crown)?[^>]*>)[\s\S]*?(<\/\2>)/g,
-  (_, open, tag, stage, crown, close) => (count++, open + critterSVG(Number(stage), Boolean(crown)).replace(/\s*\n\s*/g, '') + close),
+  (_, open, tag, stage, crown, close) => (count++, open + critterSVG(Number(stage), crown ? 1 : 0).replace(/\s*\n\s*/g, '') + close),
 )
 writeFileSync(file, html)
 console.log(`캐릭터 ${count}개를 다시 그렸어요`)

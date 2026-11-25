@@ -76,17 +76,31 @@ const crown = ({ fill, line }) => `<g transform="translate(60 30)"><g class="cro
   <circle cx="0" cy="-5.5" r="2.2" fill="#ff8fa3"/><circle cx="-8.5" cy="-4" r="1.5" fill="#8fd3f4"/><circle cx="8.5" cy="-4" r="1.5" fill="#8fd3f4"/>
 </g></g>`
 
+// 세 번째로 다 읽은 토끼는 머리에 똥을 얹고, 파리가 주위를 맴돈다. 자리는 바깥 g, 움직임(.poop, .fly)은 안쪽 g.
+const fly = (x, y, delay) => `<g transform="translate(${x} ${y})"><g class="fly" style="animation-delay:${delay}s">
+  <ellipse cx="-2" cy="-2" rx="2.4" ry="1.5" fill="#e3edf5"/><ellipse cx="2" cy="-2" rx="2.4" ry="1.5" fill="#e3edf5"/><circle r="1.8" fill="#3d3d3d"/>
+</g></g>`
+const POOP = `<g transform="translate(60 30)"><g class="poop">
+  <ellipse cx="0" cy="0" rx="15" ry="5.5" fill="#9b6a43"/>
+  <ellipse cx="0" cy="-6" rx="11.5" ry="5" fill="#a9774d"/>
+  <ellipse cx="0" cy="-11.5" rx="8" ry="4.3" fill="#b8865a"/>
+  <path d="M-2 -15 Q1 -22 5 -19 Q3 -17 2 -15 Z" fill="#b8865a"/>
+  <path d="M-9 -7 q3 1.5 6 0 M-6 -12.5 q2.5 1.2 5 0" stroke="#fff" stroke-width="1.1" opacity=".5" fill="none" stroke-linecap="round"/>
+  <circle cx="-4" cy="-6.5" r="1.2" fill="#3d2a1c"/><circle cx="3" cy="-6.5" r="1.2" fill="#3d2a1c"/>
+</g></g>${fly(38, 9, 0)}${fly(85, 14, -0.6)}${fly(80, 3, -1.2)}`
+
 // 이름 옆에 붙이는 작은 은왕관 (은색 왕관 이모지가 없어서 그림으로 그린다).
 export const SILVER_ICON = `<svg class="mini-crown" viewBox="-17 -19 34 20" role="img" aria-label="은왕관"><path d="${CROWN_PATH}" fill="${SILVER.fill}" stroke="${SILVER.line}" stroke-width="2" stroke-linejoin="round"/></svg>`
 
 // 그림 위쪽의 빈 공간을 잘라 이름표가 머리 바로 위에 붙게 한다.
 const TOP = [57, 55, 50, 46, 0]
 
-export const critterSVG = (stage, crowned = false, silver = false) => {
+// place: 이번 책을 다 읽은 순서 (1 금왕관, 2 은왕관, 3 머리에 똥, 그 밖은 없음)
+export const critterSVG = (stage, place = 0) => {
   const art =
     stage < 4
       ? `<g transform="translate(50 94) scale(${SIZE[stage]}) translate(-50 -94)"><g class="body">${turtle(stage)}</g></g>`
-      : `<g class="body">${RABBIT}</g>${crowned ? crown(GOLD) : silver ? crown(SILVER) : ''}`
+      : `<g class="body">${RABBIT}</g>${[null, crown(GOLD), crown(SILVER), POOP][place] ?? ''}`
   return `<svg viewBox="0 ${TOP[stage]} 100 ${100 - TOP[stage]}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${art}</svg>`
 }
 
@@ -200,7 +214,7 @@ function wander(c) {
   c.timer = setTimeout(step, 600 + Math.random() * 2500)
 }
 
-// members: [{ id, name, color, stage, percent, crown, me }]
+// members: [{ id, name, color, stage, percent, place, me }]
 export function updateScene(members, stageNames) {
   for (const [id, c] of cast)
     if (!members.some((m) => m.id === id)) {
@@ -225,16 +239,16 @@ export function updateScene(members, stageNames) {
       wander(c)
     }
     c.stage = m.stage
-    const sig = `${m.stage}|${m.crown}|${m.silver}|${m.color}|${m.me}`
+    const sig = `${m.stage}|${m.place}|${m.color}|${m.me}`
     if (sig !== c.sig) {
       // walk / left 같은 움직임 클래스는 남기고 모습만 바꾼다
       const moving = ['walk', 'left', 'evolve'].filter((k) => c.el.classList.contains(k)).join(' ')
       c.el.className = `critter c-${m.color} s${m.stage}${m.me ? ' me' : ''} ${moving}`
-      c.el.querySelector('.flip').innerHTML = critterSVG(m.stage, m.crown, m.silver)
+      c.el.querySelector('.flip').innerHTML = critterSVG(m.stage, m.place)
       c.sig = sig
     }
     c.el.querySelector('.tag').textContent = `${m.name} ${m.percent}%`
-    c.el.setAttribute('aria-label', `${m.name}, ${stageNames[m.stage]}, ${m.percent}% 읽음${m.crown ? ', 왕관' : m.silver ? ', 은왕관' : ''}`)
+    c.el.setAttribute('aria-label', `${m.name}, ${stageNames[m.stage]}, ${m.percent}% 읽음${['', ', 왕관', ', 은왕관', ', 머리에 똥'][m.place] ?? ''}`)
   })
 }
 

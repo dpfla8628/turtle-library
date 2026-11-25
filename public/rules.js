@@ -40,7 +40,7 @@ export function finishOrder(progress) {
     .map((p) => p.user_id)
 }
 
-// 가장 먼저 완독한 사람 = 이번 책의 왕관 주인. 두 번째는 은왕관을 쓴다.
+// 가장 먼저 완독한 사람 = 이번 책의 왕관 주인. 두 번째는 은왕관, 세 번째는 머리에 똥.
 export const crownOf = (progress) => finishOrder(progress)[0] ?? null
 
 export function nextPicker(users, currentId) {
