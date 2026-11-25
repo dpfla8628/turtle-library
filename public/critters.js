@@ -69,12 +69,16 @@ const RABBIT = `<circle cx="22" cy="78" r="8.5" fill="${CREAM}"/>
 // 왕관은 가장 먼저 다 읽은 사람(금), 두 번째로 다 읽은 사람(은)이 쓴다. 둘 다 토끼만 쓴다.
 // CSS 애니메이션의 transform 은 SVG transform 속성을 덮어쓴다. 그래서 자리는 바깥 g, 흔들림(.crown)은 안쪽 g 가 맡는다.
 const CROWN_PATH = 'M-14 0 L-16 -14 L-7.5 -7 L0 -18 L7.5 -7 L16 -14 L14 0 Z'
-const GOLD = { fill: '#f9cf4a', line: '#dfa521' }
-const SILVER = { fill: '#e4e9ef', line: '#9eaab8' }
-const crown = ({ fill, line }) => `<g transform="translate(60 30)"><g class="crown">
+const GOLD = { fill: '#f9cf4a', line: '#dfa521', glint: '#ffcc1f' }
+const SILVER = { fill: '#e4e9ef', line: '#9eaab8', glint: '#a9b6c6' }
+// 왕관 둘레의 반짝이: 네 갈래 별이 번갈아 커졌다 작아진다. 똥 옆의 파리와 같은 자리에 둔다.
+const twinkle = (x, y, size, delay, color) => `<g transform="translate(${x} ${y}) scale(${size})"><g class="twinkle" style="animation-delay:${delay}s">
+  <path d="M0 -5 Q.9 -.9 5 0 Q.9 .9 0 5 Q-.9 .9 -5 0 Q-.9 -.9 0 -5 Z" fill="${color}"/><circle r="1" fill="#fff"/>
+</g></g>`
+const crown = ({ fill, line, glint }) => `<g transform="translate(60 30)"><g class="crown">
   <path d="${CROWN_PATH}" fill="${fill}" stroke="${line}" stroke-width="1.6" stroke-linejoin="round"/>
   <circle cx="0" cy="-5.5" r="2.2" fill="#ff8fa3"/><circle cx="-8.5" cy="-4" r="1.5" fill="#8fd3f4"/><circle cx="8.5" cy="-4" r="1.5" fill="#8fd3f4"/>
-</g></g>`
+</g></g>${twinkle(37, 10, 1.6, 0, glint)}${twinkle(86, 16, 1.3, -0.5, glint)}${twinkle(81, 3, 1.05, -1, glint)}`
 
 // 세 번째로 다 읽은 토끼는 머리에 똥을 얹고, 파리가 주위를 맴돈다. 자리는 바깥 g, 움직임(.poop, .fly)은 안쪽 g.
 const fly = (x, y, delay) => `<g transform="translate(${x} ${y})"><g class="fly" style="animation-delay:${delay}s">

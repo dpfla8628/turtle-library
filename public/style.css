@@ -212,6 +212,8 @@ button.chip[aria-pressed='true'] { background: var(--c); border-color: var(--ink
 .pill.poop { background: #f1e1cf; }
 .poop { transform-box: fill-box; transform-origin: 50% 100%; animation: poop 2.4s ease-in-out infinite; }
 @keyframes poop { 50% { transform: scale(1.04, .96); } }
+.twinkle { transform-box: fill-box; transform-origin: 50% 50%; animation: twinkle 1.5s ease-in-out infinite; }
+@keyframes twinkle { 0%, 100% { transform: scale(.35) rotate(0); opacity: .35; } 50% { transform: scale(1) rotate(45deg); opacity: 1; } }
 .fly { animation: fly 1.8s ease-in-out infinite; }
 @keyframes fly { 25% { transform: translate(3px, -2px); } 50% { transform: translate(-1px, 2px); } 75% { transform: translate(-3px, -1px); } }
 .mini-crown { width: 1.15em; height: 0.7em; vertical-align: -0.02em; }
