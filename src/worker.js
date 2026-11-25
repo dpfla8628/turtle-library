@@ -122,7 +122,7 @@ async function api(req, env, url, ctx) {
     const handler = Object.hasOwn(POST, path) && POST[path]
     if (!handler) throw new Oops(404, '없는 주소예요')
     const cur = await db.prepare('SELECT * FROM cycles WHERE closed = 0').first()
-    news.push(await handler({ db, me, body, now, today, cur, origin: url.origin, env }))
+    news.push(...[await handler({ db, me, body, now, today, cur, origin: url.origin, env })].flat()) // 알림을 여러 개 돌려주는 것도 있다
   } else if (path !== 'state') throw new Oops(404, '없는 주소예요')
 
   // 알림은 응답을 기다리게 하지 않고 뒤에서 보낸다.
@@ -288,6 +288,25 @@ const needBook = (cur) => {
   if (!cur?.title) throw new Oops(409, '아직 이번 책이 정해지지 않았어요')
 }
 
+// 전원이 가능한 날을 확정했고 겹치는 날이 있으면 그중 하루를 뽑아 토론일로 정한다.
+// 책이 아직 안 정해졌으면 날짜만 모아 두고, 책이 정해질 때 다시 확인한다.
+async function decideDate(db, cur, today) {
+  const [users, avail] = (
+    await db.batch([db.prepare('SELECT id FROM users'), db.prepare('SELECT * FROM availability WHERE cycle_id = ?').bind(cur.id)])
+  ).map((r) => r.results)
+  const common = unanimous(
+    avail.map((a) => ({ ...a, dates: JSON.parse(a.dates) })),
+    users.map((u) => u.id),
+    today,
+  )
+  let decided = cur.title && common?.length ? common[Math.floor(Math.random() * common.length)] : null
+  if (decided) {
+    const set = await db.prepare('UPDATE cycles SET discussion_date = ? WHERE id = ? AND discussion_date IS NULL').bind(decided, cur.id).run()
+    if (!set.meta.changes) decided = false // 동시에 들어온 다른 요청이 먼저 정했다. 알림은 그쪽이 보낸다
+  }
+  return { users, avail, common, decided }
+}
+
 // ---- 변경 요청 ----
 const POST = {
   // 알림: 이 기기(브라우저)의 구독을 저장한다. 같은 기기로 다른 친구가 로그인하면 그 친구 것으로 바뀐다.
@@ -334,7 +353,7 @@ const POST = {
   },
 
   // 이번 타자가 책을 등록(또는 수정)한다.
-  async book({ db, me, body, now, cur }) {
+  async book({ db, me, body, now, today, cur }) {
     if (cur.picker_id !== me.id) throw new Oops(403, '이번 책은 다른 친구가 고를 차례예요')
     const title = text(body.title, 100, '책 제목')
     const pages = int(body.pages, 1, 5000, '전체 쪽수')
@@ -358,12 +377,16 @@ const POST = {
           db.prepare('INSERT INTO questions (cycle_id, sec, cat, body) VALUES (?, ?, ?, ?)').bind(cur.id, c.sec, c.cat, c.body),
         )
     await db.batch(stmts)
-    return cur.title ? null : bookNews({ name: me.name, book: { id: cur.id, title } }) // 고칠 때는 알리지 않는다
+    if (cur.title) return null // 고칠 때는 알리지 않는다
+    // 책을 고르는 동안 모두 날짜를 확정해 뒀다면 지금 토론일이 정해진다.
+    const { decided } = await decideDate(db, { ...cur, title }, today)
+    return bookNews({ name: me.name, book: { id: cur.id, title }, decided })
   },
 
   // 가능한 날짜를 저장한다. 전원이 확정했고 겹치는 날이 있으면 그중 하루를 뽑아 토론일로 정한다.
+  // 책이 정해지기 전에도 고를 수 있다(토론을 마치자마자 다음 날짜부터 모은다).
   async dates({ db, me, body, today, cur }) {
-    needBook(cur)
+    if (!cur) throw new Oops(409, '아직 이번 책 차례가 열리지 않았어요')
     if (cur.discussion_date) throw new Oops(409, '토론일이 이미 정해졌어요')
     // 화면은 내일부터 90일 안의 날만 고르게 한다. 서버도 같은 범위의 실제 날짜만 받는다 (지난 날은 조용히 버린다).
     const last = new Date(Date.parse(`${today}T00:00:00Z`) + 90 * 86400e3).toISOString().slice(0, 10)
@@ -384,22 +407,8 @@ const POST = {
       .bind(cur.id, me.id, JSON.stringify(dates), confirmed)
       .run()
 
-    const [users, avail] = (
-      await db.batch([
-        db.prepare('SELECT id FROM users'),
-        db.prepare('SELECT * FROM availability WHERE cycle_id = ?').bind(cur.id),
-      ])
-    ).map((r) => r.results)
-    const common = unanimous(
-      avail.map((a) => ({ ...a, dates: JSON.parse(a.dates) })),
-      users.map((u) => u.id),
-      today,
-    )
-    let decided = common?.length ? common[Math.floor(Math.random() * common.length)] : null
-    if (decided) {
-      const set = await db.prepare('UPDATE cycles SET discussion_date = ? WHERE id = ? AND discussion_date IS NULL').bind(decided, cur.id).run()
-      if (!set.meta.changes) return null // 동시에 들어온 다른 요청이 먼저 정했다. 알림은 그쪽이 보낸다
-    }
+    const { users, avail, common, decided } = await decideDate(db, cur, today)
+    if (decided === false) return null
     return confirmed ? datesNews({ name: me.name, me: me.id, book: cur, users, avail, decided, common }) : null
   },
 
@@ -426,8 +435,10 @@ const POST = {
     const prev = await db.prepare('SELECT * FROM cycles WHERE closed = 1 ORDER BY id DESC LIMIT 1').first()
     if (!prev) throw new Oops(409, '되돌릴 지난 책이 없어요')
     // 세 문장 모두 "이전 책이 아직 마감 상태일 때만" 일한다. 같은 요청이 동시에 두 번 들어와도 한 번만 되돌려진다.
-    const [, , reopened] = await db.batch([
+    const [, , , reopened] = await db.batch([
       db.prepare('UPDATE availability SET confirmed = 0 WHERE cycle_id = ?1 AND (SELECT closed FROM cycles WHERE id = ?1) = 1').bind(prev.id),
+      // 새 차례에서 미리 골라 둔 날짜도 함께 지운다 (책이 정해지기 전에도 날짜를 고를 수 있다).
+      db.prepare('DELETE FROM availability WHERE cycle_id = ?1 AND (SELECT title FROM cycles WHERE id = ?1) IS NULL').bind(cur.id),
       db.prepare('DELETE FROM cycles WHERE id = ? AND title IS NULL').bind(cur.id), // 열린 사이클은 하나뿐이어야 하므로 다시 열기 전에 지운다
       db.prepare('UPDATE cycles SET closed = 0, winner_id = NULL, discussion_date = NULL WHERE id = ? AND closed = 1').bind(prev.id),
     ])

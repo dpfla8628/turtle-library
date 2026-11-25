@@ -279,7 +279,8 @@ function homeView() {
       (mine
         ? `<section class="card"><p class="eyebrow">${nth} · 내가 고를 차례</p><h2>이번에 함께 읽을 책을 골라 주세요</h2>${finder()}${bookForm()}</section>`
         : `<section class="card center"><p class="eyebrow">${nth}</p><h2>${esc(picker.name)}님이 책을 고르는 중이에요</h2>
-           <p class="soft">책이 정해지면 여기에 나타나요. 조금만 기다려 주세요 🐢</p></section>`) +
+           <p class="soft">책이 정해지면 여기에 나타나요. 그동안 아래 달력에서 다음 모임 날짜를 골라 주세요 🐢</p></section>`) +
+      calendarCard(c) +
       (previous ? `<p class="center"><button class="link" data-act="reopen">지난 토론을 아직 못 했나요? 되돌리기</button></p>` : '')
     )
   h += `<section class="card book">

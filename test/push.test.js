@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { b64u, unb64u, encryptPayload, vapidAuth, newVapidKeys, isPushEndpoint, sendPush } from '../src/push.js'
-import { progressNews, datesNews, reminderNews, nudgeNews, bookNews, questionNews } from '../src/news.js'
+import { progressNews, datesNews, reminderNews, nudgeNews, bookNews, questionNews, rolloverNews } from '../src/news.js'
 
 // RFC 8291 5절과 부록 A 의 예제 값. 같은 입력이면 암호문이 글자 하나까지 같아야 한다.
 const RFC = {
@@ -165,4 +165,22 @@ test('nudgeNews: 월·목 아침에만, 기다리게 하는 사람에게만', ()
   assert.equal(nudgeNews({ cycle: scheduling, today: '2026-11-12', now, users, avail: users.map((u) => ({ user_id: u.id, confirmed: 1 })) }), null)
   assert.equal(nudgeNews({ cycle: { ...scheduling, discussion_date: '2026-11-21' }, today: '2026-11-12', now, users, avail: [] }), null, '토론일이 정해졌으면 독촉하지 않는다')
   assert.equal(nudgeNews({ cycle: null, today: '2026-11-09', now, users, avail: [] }), null)
+})
+
+test('rolloverNews: 책 고를 사람에게는 책 고르기, 나머지에게는 다음 모임 날짜 고르기', () => {
+  const users = [{ id: 1, name: '예림' }, { id: 2, name: '민선' }, { id: 3, name: '소희' }]
+  const [turn, dates] = rolloverNews({ closed: { title: '모모' }, winner: users[0], picker: users[1], users })
+  assert.deepEqual(turn.to, [2])
+  assert.match(turn.title, /책을 고를 차례/)
+  assert.deepEqual(dates.to, [1, 3])
+  assert.match(dates.title, /날짜를 골라/)
+  assert.match(dates.body, /민선님이 다음 책을 고르는 동안/)
+})
+
+test('bookNews: 책을 고르는 동안 날짜가 다 모였으면 토론일도 같이 알린다', () => {
+  const book = { id: 3, title: '모모' }
+  assert.match(bookNews({ name: '토리', book }).body, /모일 수 있는 날/)
+  const both = bookNews({ name: '토리', book, decided: '2026-12-05' })
+  assert.match(both.title, /토론일이 정해졌어요/)
+  assert.match(both.body, /12월 5일/)
 })

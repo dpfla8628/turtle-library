@@ -21,11 +21,14 @@ export function progressNews({ name, userId, book, before, after, first }) {
   return null
 }
 
-export const bookNews = ({ name, book }) => ({
+// decided: 책을 고르는 동안 모두 날짜를 확정해 둬서 책과 함께 정해진 토론일
+export const bookNews = ({ name, book, decided }) => ({
   kind: 'plan',
   tag: `c${book.id}-book`,
-  title: '📚 이번 책이 정해졌어요',
-  body: `${name}님의 선택: 『${book.title}』. 모일 수 있는 날을 골라 주세요.`,
+  title: decided ? '📚 이번 책과 토론일이 정해졌어요' : '📚 이번 책이 정해졌어요',
+  body: decided
+    ? `${name}님의 선택: 『${book.title}』 · 토론일 ${fmtDate(decided)}`
+    : `${name}님의 선택: 『${book.title}』. 아직 날짜를 안 골랐다면 모일 수 있는 날을 골라 주세요.`,
 })
 
 // 누군가 가능한 날을 확정했을 때.
@@ -63,12 +66,19 @@ export const questionNews = ({ name, userId, book, text }) => ({
   body: text.split('\n')[0].slice(0, 90),
 })
 
-// 책이 넘어갔을 때: 새 타자에게는 "내 차례", 나머지에게는 누가 고르는지.
+// 책이 넘어갔을 때: 새 타자에게는 "책을 골라 주세요", 나머지에게는 "다음 모임 날짜를 골라 주세요".
+// 날짜는 책이 정해지기 전에도 고를 수 있다.
 export function rolloverNews({ closed, winner, picker, users }) {
   const last = closed?.title ? `지난 책 『${closed.title}』${winner ? `의 빨리 읽기 왕은 ${winner.name}님!` : '을 마쳤어요.'} ` : ''
   return [
-    { kind: 'plan', to: [picker.id], tag: 'turn', title: '📚 이번엔 내가 책을 고를 차례예요', body: `${last}다음에 함께 읽을 책을 골라 주세요.` },
-    { kind: 'plan', to: users.map((u) => u.id).filter((id) => id !== picker.id), tag: 'turn', title: '🐢 다음 책 차례가 됐어요', body: `${last}이번엔 ${picker.name}님이 책을 골라요.` },
+    { kind: 'plan', to: [picker.id], tag: 'turn', title: '📚 이번엔 내가 책을 고를 차례예요', body: `${last}다음에 함께 읽을 책을 골라 주세요. 모일 날짜도 같이 골라 주세요.` },
+    {
+      kind: 'plan',
+      to: users.map((u) => u.id).filter((id) => id !== picker.id),
+      tag: 'turn',
+      title: '🗓️ 다음 모임 날짜를 골라 주세요',
+      body: `${last}${picker.name}님이 다음 책을 고르는 동안, 달력에서 모일 수 있는 날을 골라 주세요.`,
+    },
   ]
 }
 
